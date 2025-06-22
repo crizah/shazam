@@ -5,10 +5,17 @@
 #include <cmath>
 #include <complex>
 #include <cfloat>
+#include <algorithm>
+
 
 
 
 using namespace std;
+
+vector<pair<int, int>> band_ranges = {
+    {0, 10}, {10, 20}, {20, 40}, {40, 80}, {80, 160}, {160, 511}
+};
+
 
 const double PI = acos(-1);
 
@@ -32,11 +39,21 @@ struct WAVheader{
 
 };
 
+struct Peaks{
+
+
+};
+
 
 
 WAVheader extract_header(const string& filename) {
 
-    ifstream file(filename, ios::binary | ios::ate);
+    ifstream file(filename, ios::binary);
+
+    if (!file.is_open()) {
+        cerr << "Failed to open file: " << filename << endl;
+        exit(1);
+    }
 
     WAVheader header ;
 
@@ -44,6 +61,8 @@ WAVheader extract_header(const string& filename) {
 
 
     cout<<("extracted")<<endl;
+    cout<<("sample rate: ")<<header.sample_rate<<endl;
+    
     return header;
 }
 
@@ -131,53 +150,162 @@ void fft(vector<complex<double>> &a){
 
 }
 
-// vector<vector<uint8_t>> normalizeSpectrogram(const vector<vector<double>>& spec) {
-//     double minVal = DBL_MAX, maxVal = DBL_MIN;
 
-//     for (const auto& row : spec) {
-//         for (double val : row) {
-//             minVal = min(minVal, val);
-//             maxVal = max(maxVal, val);
-//         }
-//     }
+vector<double> lowPassFilter(const vector<int16_t>& input, double cutoffFreq, int sampleRate, int filterSize = 101) {
+    // transfer function H(s) = 1 / (1 + sRC), where RC is the time constant
 
-//     double range = maxVal - minVal;
-//     if (range == 0) range = 1; // avoid div-by-zero
+    vector<double> filtered(input.size(), 0.0);
+    vector<double> coeff(filterSize);
+    int mid = filterSize / 2;
 
-//     vector<vector<uint8_t>> normSpec(spec.size(), vector<uint8_t>(spec[0].size()));
-//     for (size_t i = 0; i < spec.size(); ++i) {
-//         for (size_t j = 0; j < spec[0].size(); ++j) {
-//             normSpec[i][j] = static_cast<uint8_t>(255.0 * (spec[i][j] - minVal) / range);
-//         }
-//     }
+    double normCutoff = cutoffFreq / sampleRate;
 
-//     return normSpec;
+    // Design low-pass filter kernel
+    for (int i = 0; i < filterSize; i++) {
+        int n = i - mid;
+        if (n == 0) {
+            coeff[i] = 2 * normCutoff;
+        } else {
+            coeff[i] = sin(2 * PI * normCutoff * n) / (PI * n);
+        }
+        // Apply Hamming window
+        coeff[i] *= 0.54 - 0.46 * cos(2 * PI * i / (filterSize - 1));
+    }
+
+    // Convolution
+    for (size_t i = mid; i < input.size() - mid; ++i) {
+        double sum = 0.0;
+        for (int j = 0; j < filterSize; ++j) {
+            sum += static_cast<double>(input[i - mid + j]) * coeff[j];
+        }
+        filtered[i] = sum;
+    }
+
+    return filtered;
+}
+
+vector<int16_t> downsample(const vector<double>& signal, int originalRate, int targetRate) {
+    int ratio = originalRate / targetRate;
+    vector<int16_t> downsampled;
+
+    for (size_t i = 0; i < signal.size(); i += ratio) {
+        downsampled.push_back(static_cast<int16_t>(signal[i]));
+    }
+
+    return downsampled;
+}
+
+int computeSafeDownsampleRate(int originalRate, int cutoffFreq = 5000) {
+    int minRequiredRate = 2 * cutoffFreq;
+
+    // Common safe audio rates (sorted low to high)
+    vector<int> candidates = {8000, 11025, 12000, 16000, 22050, 24000, 32000, 44100};
+
+    for (int r : candidates) {
+        if (r >= minRequiredRate && originalRate % r == 0) {
+            return r;
+        }
+    }
+
+    // No safe divisor found — fall back to original rate (no downsampling)
+    return originalRate;
+}
+
+vector<vector<uint8_t>> normalizeSpectrogram(const vector<vector<double>>& spec) {
+    double minVal = DBL_MAX, maxVal = DBL_MIN;
+
+    for (const auto& row : spec)
+        for (double val : row)
+            minVal = min(minVal, val), maxVal = max(maxVal, val);
+
+    double range = maxVal - minVal;
+    if (range == 0) range = 1;
+
+    vector<vector<uint8_t>> norm(spec.size(), vector<uint8_t>(spec[0].size()));
+    for (size_t i = 0; i < spec.size(); ++i)
+        for (size_t j = 0; j < spec[0].size(); ++j)
+            norm[i][j] = static_cast<uint8_t>(255.0 * (spec[i][j] - minVal) / range);
+
+    return norm;
+}
+
+
+tuple<uint8_t, uint8_t, uint8_t> jetColorMap(uint8_t value) {
+    double x = value / 255.0;
+
+    uint8_t r = static_cast<uint8_t>(255 * clamp(min(4 * (x - 0.75), 1.0), 0.0, 1.0));
+    uint8_t g = static_cast<uint8_t>(255 * clamp(min(4 * fabs(x - 0.5) - 1.0, 1.0), 0.0, 1.0));
+    uint8_t b = static_cast<uint8_t>(255 * clamp(min(4 * (0.25 - x), 1.0), 0.0, 1.0));
+
+    return {r, g, b};
+}
+
+void saveSpectrogramAsPPM(const vector<vector<uint8_t>>& normSpec, const string& filename) {
+    ofstream file(filename);
+    int height = normSpec.size();
+    int width = normSpec[0].size();
+
+    file << "P3\n" << width << " " << height << "\n255\n";
+
+    for (int i = 0; i < height; ++i) {
+        for (int j = 0; j < width; ++j) {
+            auto [r, g, b] = jetColorMap(normSpec[i][j]);
+            file << (int)r << " " << (int)g << " " << (int)b << "  ";
+        }
+        file << "\n";
+    }
+
+    file.close();
+}
+
+
+vector<vector<int>> extractPeakFrequencies(const vector<vector<double>>& spectrogram) {
+    // this needs to return the freq and the time at which that peak occurs in the audio
+
+    vector<vector<int>> peak_freqs_per_frame;
+
+    for (const auto& frame : spectrogram) {
+        vector<pair<int, double>> peaks;  // (bin index, magnitude)
+
+        // Step 1: Get strongest freq in each band
+        for (auto [start, end] : band_ranges) {
+            int max_bin = -1;
+            double max_mag = -1.0;
+
+            for (int i = start; i <= end && i < frame.size(); i++) {
+                if (frame[i] > max_mag) {
+                    max_mag = frame[i];
+                    max_bin = i;
+                }
+            }
+
+            if (max_bin != -1)
+                peaks.emplace_back(max_bin, max_mag);
+        }
+
+        // Step 2: Compute average of magnitudes
+        double sum = 0;
+        for (const auto& [bin, mag] : peaks) sum += mag;
+        double avg = peaks.empty() ? 0 : sum / peaks.size();
+
+        // Step 3: Keep only peaks ≥ average
+        vector<int> strong_bins;
+        for (const auto& [bin, mag] : peaks) {
+            if (mag >= avg)
+                strong_bins.push_back(bin);
+        }
+
+        peak_freqs_per_frame.push_back(strong_bins);
+    }
+
+    return peak_freqs_per_frame;
+}
+
+// int fingerPrint(){
+//     // Fingerprint generates fingerprints from a list of peaks and stores them in an array.
+//     // Each fingerprint consists of an address and a couple.
+//     // The address is a hash. The couple contains the anchor time and the song ID.
 // }
-
-
-// void saveSpectrogramAsPGM(const vector<vector<uint8_t>>& spec, const string& filename) {
-//     ofstream file(filename);
-//     int height = spec.size();        // frames/time
-//     int width = spec[0].size();      // freq bins
-
-//     // PGM Header (P2 = ASCII PGM)
-//     file << "P2\n";
-//     file << width << " " << height << "\n";
-//     file << "255\n";  // Max gray value
-
-//     for (const auto& row : spec) {
-//         for (uint8_t val : row) {
-//             file << (int)val << " ";
-//         }
-//         file << "\n";
-//     }
-
-//     file.close();
-// }
-
-
-
-
 
 int main(){
     string filename = "file_example_WAV_1MG.wav";
@@ -186,12 +314,31 @@ int main(){
     vector<int16_t> PCMsamples = readPSMdata(filename, header);
     cout<<PCMsamples.size()<<endl;
 
+    
+    int originalRate = header.sample_rate;
+    int targetRate = computeSafeDownsampleRate(originalRate);
+
+    if (targetRate != originalRate) {
+        cout << "Downsampling from " << originalRate << " Hz to " << targetRate << " Hz\n";
+    } else {
+        cout << "Keeping original rate: " << originalRate << " Hz (no downsampling applied)\n";
+    }
+
+
+    auto filtered = lowPassFilter(PCMsamples, 5000.0, originalRate);
+    auto downsampled = downsample(filtered, originalRate, targetRate);
+
+    cout<<("downsampled")<<endl;
+
+
     int frame_size = 1024;
     int hop_size = 512;
 
-    vector<vector<double>> frames = frameSignal(PCMsamples, frame_size, hop_size);
+    vector<vector<double>> frames = frameSignal(downsampled, frame_size, hop_size);
 
     cout<<"number of frames: "<<frames.size()<<endl;
+
+
 
     vector<vector<double>> spectrogram;
 
@@ -206,6 +353,7 @@ int main(){
         fft(freq);
 
     // Compute magnitude (only first half: N/2 bins)
+    // why is this happening??
         vector<double> magnitude(frame.size() / 2);
         for (size_t k = 0; k < magnitude.size(); k++) {
             magnitude[k] = abs(freq[k]);
@@ -216,9 +364,18 @@ int main(){
 
     cout<<("spectrogram made")<<endl;
 
-    // auto normalized = normalizeSpectrogram(spectrogram);
-    // saveSpectrogramAsPGM(normalized, "spectrogram.pgm");
+    
 
+
+    auto norm = normalizeSpectrogram(spectrogram);
+    saveSpectrogramAsPPM(norm, "spectrogram.ppm");
+
+    cout<<("file saved")<<endl;
+
+    auto peak_freqs = extractPeakFrequencies(spectrogram);
+    cout<<("peak freq identified")<<endl;
+    cout<<peak_freqs[500][0]<<endl;
+    
     return 0;
 
 }
