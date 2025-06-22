@@ -40,8 +40,8 @@ struct WAVheader{
 };
 
 struct Peaks{
-
-
+    double time;
+    complex<double> freq ;
 };
 
 
@@ -90,20 +90,33 @@ vector<double> hann(int frame_size){
 
 vector<vector<double>> frameSignal(const vector<int16_t>& pcm, int frame_size, int hop_size){
     // divide into frames and apply hann function to smooth outedges
+
+
     vector<vector<double>> frames;
     vector<double> window = hann(frame_size);
 
-    size_t numFrames = (pcm.size() - frame_size) / hop_size + 1;
+    // size_t numFrames = (pcm.size() - frame_size) / hop_size + 1;
+    size_t numFrames = pcm.size()  / frame_size - hop_size ;
 
     for (size_t i = 0; i < numFrames; i++) {
         size_t start = i * hop_size;
+        size_t end = start + frame_size;
+
+        if( end > pcm.size()){
+            end = pcm.size();
+
+        }
+
+
         vector<double> frame(frame_size);
 
         for (int j = 0; j < frame_size; j++) {
             frame[j] = static_cast<double>(pcm[start + j]) * window[j];
         }
 
+// need to apply fft per frame for some reason did it in main function instead of here
         frames.push_back(frame);
+       
     }
 
     return frames;
@@ -117,6 +130,9 @@ double getUpperFreqLimit(uint32_t sampleRate) {
 int freqToBin(double freq, int fftSize, double sampleRate) {
     return static_cast<int>((freq / sampleRate) * fftSize);
 }
+
+
+
 
 void fft(vector<complex<double>> &a){
 
@@ -211,23 +227,19 @@ int computeSafeDownsampleRate(int originalRate, int cutoffFreq = 5000) {
     return originalRate;
 }
 
-vector<vector<uint8_t>> normalizeSpectrogram(const vector<vector<double>>& spec) {
-    double minVal = DBL_MAX, maxVal = DBL_MIN;
-
-    for (const auto& row : spec)
-        for (double val : row)
-            minVal = min(minVal, val), maxVal = max(maxVal, val);
-
-    double range = maxVal - minVal;
-    if (range == 0) range = 1;
-
-    vector<vector<uint8_t>> norm(spec.size(), vector<uint8_t>(spec[0].size()));
-    for (size_t i = 0; i < spec.size(); ++i)
-        for (size_t j = 0; j < spec[0].size(); ++j)
-            norm[i][j] = static_cast<uint8_t>(255.0 * (spec[i][j] - minVal) / range);
-
-    return norm;
-}
+// vector<vector<uint8_t>> normalizeSpectrogram(const vector<vector<complex<double>>>& spec) {
+//     double minVal = DBL_MAX, maxVal = DBL_MIN;
+//     for (const auto& row : spec)
+//         for (double val : row)
+//             minVal = min(minVal, val), maxVal = max(maxVal, val);
+//     double range = maxVal - minVal;
+//     if (range == 0) range = 1;
+//     vector<vector<uint8_t>> norm(spec.size(), vector<uint8_t>(spec[0].size()));
+//     for (size_t i = 0; i < spec.size(); ++i)
+//         for (size_t j = 0; j < spec[0].size(); ++j)
+//             norm[i][j] = static_cast<uint8_t>(255.0 * (spec[i][j] - minVal) / range);
+//     return norm;
+// }
 
 
 tuple<uint8_t, uint8_t, uint8_t> jetColorMap(uint8_t value) {
@@ -259,54 +271,55 @@ void saveSpectrogramAsPPM(const vector<vector<uint8_t>>& normSpec, const string&
 }
 
 
-vector<vector<int>> extractPeakFrequencies(const vector<vector<double>>& spectrogram) {
-    // this needs to return the freq and the time at which that peak occurs in the audio
-
-    vector<vector<int>> peak_freqs_per_frame;
-
-    for (const auto& frame : spectrogram) {
-        vector<pair<int, double>> peaks;  // (bin index, magnitude)
-
-        // Step 1: Get strongest freq in each band
-        for (auto [start, end] : band_ranges) {
-            int max_bin = -1;
-            double max_mag = -1.0;
-
-            for (int i = start; i <= end && i < frame.size(); i++) {
-                if (frame[i] > max_mag) {
-                    max_mag = frame[i];
-                    max_bin = i;
-                }
-            }
-
-            if (max_bin != -1)
-                peaks.emplace_back(max_bin, max_mag);
-        }
-
-        // Step 2: Compute average of magnitudes
-        double sum = 0;
-        for (const auto& [bin, mag] : peaks) sum += mag;
-        double avg = peaks.empty() ? 0 : sum / peaks.size();
-
-        // Step 3: Keep only peaks ≥ average
-        vector<int> strong_bins;
-        for (const auto& [bin, mag] : peaks) {
-            if (mag >= avg)
-                strong_bins.push_back(bin);
-        }
-
-        peak_freqs_per_frame.push_back(strong_bins);
-    }
-
-    return peak_freqs_per_frame;
-}
-
+// vector<vector<int>> extractPeakFrequencies(const vector<vector<complex<double>>>& spectrogram) {
+//     // this needs to return the freq and the time at which that peak occurs in the audio
+//     vector<vector<int>> peak_freqs_per_frame;
+//     for (const auto& frame : spectrogram) {
+//         vector<pair<int, double>> peaks;  // (bin index, magnitude)
+//         // Step 1: Get strongest freq in each band
+//         for (auto [start, end] : band_ranges) {
+//             int max_bin = -1;
+//             double max_mag = -1.0;
+//             for (int i = start; i <= end && i < frame.size(); i++) {
+//                 if (frame[i] > max_mag) {
+//                     max_mag = frame[i];
+//                     max_bin = i;
+//                 }
+//             }
+//             if (max_bin != -1)
+//                 peaks.emplace_back(max_bin, max_mag);
+//         }
+//         // Step 2: Compute average of magnitudes
+//         double sum = 0;
+//         for (const auto& [bin, mag] : peaks) sum += mag;
+//         double avg = peaks.empty() ? 0 : sum / peaks.size();
+//         // Step 3: Keep only peaks ≥ average
+//         vector<int> strong_bins;
+//         for (const auto& [bin, mag] : peaks) {
+//             if (mag >= avg)
+//                 strong_bins.push_back(bin);
+//         }
+//         peak_freqs_per_frame.push_back(strong_bins);
+//     }
+//     return peak_freqs_per_frame;
+// }
 // int fingerPrint(){
 //     // Fingerprint generates fingerprints from a list of peaks and stores them in an array.
 //     // Each fingerprint consists of an address and a couple.
 //     // The address is a hash. The couple contains the anchor time and the song ID.
 // }
 
+
+vector<Peaks> extractPeakFrequencies (const vector<vector<complex<double>>>& spec, double duration){
+    vector<Peaks> peaks;
+    if(spec.empty()){
+        return peaks;
+    }
+
+    // get strongest freq in each band per frame 
+    return peaks;
+
+}
 int main(){
     string filename = "file_example_WAV_1MG.wav";
     WAVheader header = extract_header(filename);
@@ -332,15 +345,17 @@ int main(){
 
 
     int frame_size = 1024;
-    int hop_size = 512;
+    int hop_size = frame_size/32;  // 512
 
     vector<vector<double>> frames = frameSignal(downsampled, frame_size, hop_size);
 
     cout<<"number of frames: "<<frames.size()<<endl;
 
+ 
 
+ // spectrogram needs to be vector<vector<complex<double>>> 
 
-    vector<vector<double>> spectrogram;
+    vector<vector<complex<double>>> spectrogram;
 
     for (int i = 0; i < frames.size(); i++) {
         vector<double> frame = frames[i];
@@ -354,12 +369,12 @@ int main(){
 
     // Compute magnitude (only first half: N/2 bins)
     // why is this happening??
-        vector<double> magnitude(frame.size() / 2);
-        for (size_t k = 0; k < magnitude.size(); k++) {
-            magnitude[k] = abs(freq[k]);
-        }
+        // vector<double> magnitude(frame.size() / 2);
+        // for (size_t k = 0; k < magnitude.size(); k++) {
+        //     magnitude[k] = abs(freq[k]);
+        // }
 
-        spectrogram.push_back(magnitude);
+        spectrogram.push_back(freq);
     }
 
     cout<<("spectrogram made")<<endl;
@@ -367,14 +382,14 @@ int main(){
     
 
 
-    auto norm = normalizeSpectrogram(spectrogram);
-    saveSpectrogramAsPPM(norm, "spectrogram.ppm");
+    // auto norm = normalizeSpectrogram(spectrogram);
+    // saveSpectrogramAsPPM(norm, "spectrogram.ppm");
 
-    cout<<("file saved")<<endl;
+    // cout<<("file saved")<<endl;
 
-    auto peak_freqs = extractPeakFrequencies(spectrogram);
-    cout<<("peak freq identified")<<endl;
-    cout<<peak_freqs[500][0]<<endl;
+    // auto peak_freqs = extractPeakFrequencies(spectrogram);
+    // cout<<("peak freq identified")<<endl;
+    // // cout<<peak_freqs[500][0]<<endl;
     
     return 0;
 
