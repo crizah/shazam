@@ -85,60 +85,6 @@ vector<int16_t> readPSMdata(const string &filename, const WAVheader& header){
 
 }
 
-vector<double> hann(int frame_size){
-    // to smooth out the hopsize 
-    vector<double> window(frame_size);
-    for (int i = 0; i < frame_size; i++) {
-        window[i] = 0.5 * (1 - cos(2 * M_PI * i / (frame_size - 1)));
-    }
-    return window;
-}
-
-vector<vector<double>> frameSignal(const vector<int16_t>& pcm, int frame_size, int hop_size){
-    // divide into frames and apply hann function to smooth outedges
-
-
-    vector<vector<double>> frames;
-    vector<double> window = hann(frame_size);
-
-    // size_t numFrames = (pcm.size() - frame_size) / hop_size + 1;
-    size_t numFrames = pcm.size()  / frame_size - hop_size ;
-
-    for (size_t i = 0; i < numFrames; i++) {
-        size_t start = i * hop_size;
-        size_t end = start + frame_size;
-
-        if( end > pcm.size()){
-            end = pcm.size();
-
-        }
-
-
-        vector<double> frame(frame_size);
-
-        for (int j = 0; j < frame_size; j++) {
-            frame[j] = static_cast<double>(pcm[start + j]) * window[j];
-        }
-
-// need to apply fft per frame for some reason did it in main function instead of here
-        frames.push_back(frame);
-       
-    }
-
-    return frames;
-}
-
-double getUpperFreqLimit(uint32_t sampleRate) {
-    double a = sampleRate / 2.0;
-    return min(50000.0, a);  // Cap at 50kHz
-}
-
-int freqToBin(double freq, int fftSize, double sampleRate) {
-    return static_cast<int>((freq / sampleRate) * fftSize);
-}
-
-
-
 
 void fft(vector<complex<double>> &a){
 
@@ -171,6 +117,72 @@ void fft(vector<complex<double>> &a){
     }
 
 }
+
+
+vector<double> hann(int frame_size){
+    // to smooth out the hopsize 
+    vector<double> window(frame_size);
+    for (int i = 0; i < frame_size; i++) {
+        window[i] = 0.5 * (1 - cos(2 * M_PI * i / (frame_size - 1)));
+    }
+    return window;
+}
+
+vector<vector<complex<double>>> frameSignal(const vector<int16_t>& pcm, int frame_size, int hop_size){
+    // divide into frames and apply hann function to smooth outedges
+
+    vector<vector<complex<double>>> frames;
+    vector<double> window = hann(frame_size);
+
+    // size_t numFrames = (pcm.size() - frame_size) / hop_size + 1;
+    size_t numFrames = pcm.size()  / frame_size - hop_size ;
+
+    for (size_t i = 0; i < numFrames; i++) {
+        size_t start = i * hop_size;
+        size_t end = start + frame_size;
+
+        if( end > pcm.size()){
+            end = pcm.size();
+
+        }
+
+
+        vector<double> frame(frame_size);
+
+        for (int j = 0; j < frame_size; j++) {
+            
+            frame[j] = static_cast<double>(pcm[start + j]) * window[j];
+        }
+
+        vector<complex<double>> freq(frame.size());
+
+        for (size_t j = 0; j < frame.size(); j++) {
+            freq[j] = complex<double>(frame[j], 0.0);
+        }
+
+        fft(freq);
+
+        
+        frames.push_back(freq);
+
+       
+    }
+
+    return frames;
+}
+
+double getUpperFreqLimit(uint32_t sampleRate) {
+    double a = sampleRate / 2.0;
+    return min(50000.0, a);  // Cap at 50kHz
+}
+
+int freqToBin(double freq, int fftSize, double sampleRate) {
+    return static_cast<int>((freq / sampleRate) * fftSize);
+}
+
+
+
+
 
 
 vector<double> lowPassFilter(const vector<int16_t>& input, double cutoffFreq, int sampleRate, int filterSize = 101) {
@@ -233,19 +245,19 @@ int computeSafeDownsampleRate(int originalRate, int cutoffFreq = 5000) {
     return originalRate;
 }
 
-// vector<vector<uint8_t>> normalizeSpectrogram(const vector<vector<complex<double>>>& spec) {
-//     double minVal = DBL_MAX, maxVal = DBL_MIN;
-//     for (const auto& row : spec)
-//         for (double val : row)
-//             minVal = min(minVal, val), maxVal = max(maxVal, val);
-//     double range = maxVal - minVal;
-//     if (range == 0) range = 1;
-//     vector<vector<uint8_t>> norm(spec.size(), vector<uint8_t>(spec[0].size()));
-//     for (size_t i = 0; i < spec.size(); ++i)
-//         for (size_t j = 0; j < spec[0].size(); ++j)
-//             norm[i][j] = static_cast<uint8_t>(255.0 * (spec[i][j] - minVal) / range);
-//     return norm;
-// }
+vector<vector<uint8_t>> normalizeSpectrogram(const vector<vector<complex<double>>>& spec) {
+    double minVal = DBL_MAX, maxVal = DBL_MIN;
+    for (const auto& row : spec)
+        for (complex<double> val : row)
+            minVal = min(minVal, abs(val)), maxVal = max(maxVal, abs(val));
+    double range = maxVal - minVal;
+    if (range == 0) range = 1;
+    vector<vector<uint8_t>> norm(spec.size(), vector<uint8_t>(spec[0].size()));
+    for (size_t i = 0; i < spec.size(); ++i)
+        for (size_t j = 0; j < spec[0].size(); ++j)
+            norm[i][j] = static_cast<uint8_t>(255.0 * (abs(spec[i][j]) - minVal) / range);
+    return norm;
+}
 
 
 tuple<uint8_t, uint8_t, uint8_t> jetColorMap(uint8_t value) {
@@ -390,51 +402,16 @@ int main(){
     int frame_size = 1024;
     int hop_size = frame_size/32;  // 512
 
-    vector<vector<double>> frames = frameSignal(downsampled, frame_size, hop_size);
+    vector<vector<complex<double>>> spectrogram = frameSignal(downsampled, frame_size, hop_size);
 
-    cout<<"number of frames: "<<frames.size()<<endl;
-
- 
-
- // spectrogram needs to be vector<vector<complex<double>>> 
-
-    vector<vector<complex<double>>> spectrogram;
-
-    for (int i = 0; i < frames.size(); i++) {
-        vector<double> frame = frames[i];
-        vector<complex<double>> freq(frame.size());
-
-        for (size_t j = 0; j < frame.size(); j++) {
-            freq[j] = complex<double>(frame[j], 0.0);
-        }
-
-        fft(freq);
-
-    // Compute magnitude (only first half: N/2 bins)
-    // why is this happening??
-        // vector<double> magnitude(frame.size() / 2);
-        // for (size_t k = 0; k < magnitude.size(); k++) {
-        //     magnitude[k] = abs(freq[k]);
-        // }
-
-        spectrogram.push_back(freq);
-    }
-
+    cout<<"number of frames: "<<spectrogram.size()<<endl;
     cout<<("spectrogram made")<<endl;
 
-    // cout<<spectrogram[50].size()<<endl;
 
-    
+    auto norm = normalizeSpectrogram(spectrogram);
+    saveSpectrogramAsPPM(norm, "spectrogram.ppm");
 
-
-    // auto norm = normalizeSpectrogram(spectrogram);
-    // saveSpectrogramAsPPM(norm, "spectrogram.ppm");
-
-    // cout<<("file saved")<<endl;
-
-    // auto peak_freqs = extractPeakFrequencies(spectrogram);
-    // cout<<("peak freq identified")<<endl;
-    // // cout<<peak_freqs[500][0]<<endl;
+    cout<<("file saved")<<endl;
 
     double audioDuration = downsampled.size()/targetRate ; 
     
