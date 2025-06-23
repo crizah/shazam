@@ -6,6 +6,7 @@
 #include <complex>
 #include <cfloat>
 #include <algorithm>
+#include <typeinfo>
 
 
 
@@ -128,7 +129,12 @@ vector<double> hann(int frame_size){
     return window;
 }
 
-vector<vector<complex<double>>> frameSignal(const vector<int16_t>& pcm, int frame_size, int hop_size){
+
+int freqToBin(double freq, int fftSize, double sampleRate) {
+    return static_cast<int>((freq / sampleRate) * fftSize);
+}
+
+vector<vector<complex<double>>> frameSignal(const vector<int16_t>& pcm, int frame_size, int hop_size, double originalRate){
     // divide into frames and apply hann function to smooth outedges
 
     vector<vector<complex<double>>> frames;
@@ -146,13 +152,14 @@ vector<vector<complex<double>>> frameSignal(const vector<int16_t>& pcm, int fram
 
         }
 
-
         vector<double> frame(frame_size);
 
         for (int j = 0; j < frame_size; j++) {
+            // cout<<pcm[start+j]<<", " ;
             
             frame[j] = static_cast<double>(pcm[start + j]) * window[j];
         }
+        
 
         vector<complex<double>> freq(frame.size());
 
@@ -162,100 +169,155 @@ vector<vector<complex<double>>> frameSignal(const vector<int16_t>& pcm, int fram
 
         fft(freq);
 
+        // double targetRate = originalRate/4;
         
+        // int minBin = freqToBin(20.0, freq.size(), targetRate);
+        // int maxBin = freqToBin(5000.0, freq.size(), targetRate);
+        // if (maxBin > freq.size()) maxBin = freq.size() - 1;
+
+        // vector<complex<double>> cropped;
+        // for (int j = minBin; j <= maxBin; j++)
+        //     cropped.push_back(freq[j]);
+
         frames.push_back(freq);
 
-       
+
+
+      
     }
 
     return frames;
 }
 
-double getUpperFreqLimit(uint32_t sampleRate) {
-    double a = sampleRate / 2.0;
-    return min(50000.0, a);  // Cap at 50kHz
-}
-
-int freqToBin(double freq, int fftSize, double sampleRate) {
-    return static_cast<int>((freq / sampleRate) * fftSize);
-}
 
 
 
+vector<double> lowPassFilter(const vector<int16_t>& input, double cutoffFreq, int sampleRate) {
+    vector<double> filtered;
+    filtered.reserve(input.size());
 
+    double rc = 1.0 / (2 * PI * cutoffFreq);
+    double dt = 1.0 / sampleRate;
+    double alpha = dt / (rc + dt);
 
+    double prev = static_cast<double>(input[0]);
 
-vector<double> lowPassFilter(const vector<int16_t>& input, double cutoffFreq, int sampleRate, int filterSize = 101) {
-    // transfer function H(s) = 1 / (1 + sRC), where RC is the time constant
-
-    vector<double> filtered(input.size(), 0.0);
-    vector<double> coeff(filterSize);
-    int mid = filterSize / 2;
-
-    double normCutoff = cutoffFreq / sampleRate;
-
-    // Design low-pass filter kernel
-    for (int i = 0; i < filterSize; i++) {
-        int n = i - mid;
-        if (n == 0) {
-            coeff[i] = 2 * normCutoff;
-        } else {
-            coeff[i] = sin(2 * PI * normCutoff * n) / (PI * n);
-        }
-        // Apply Hamming window
-        coeff[i] *= 0.54 - 0.46 * cos(2 * PI * i / (filterSize - 1));
-    }
-
-    // Convolution
-    for (size_t i = mid; i < input.size() - mid; ++i) {
-        double sum = 0.0;
-        for (int j = 0; j < filterSize; ++j) {
-            sum += static_cast<double>(input[i - mid + j]) * coeff[j];
-        }
-        filtered[i] = sum;
+    for (size_t i = 0; i < input.size(); i++) {
+        double a = alpha * input[i] + (1 - alpha) * prev;
+        filtered.push_back(a);
+        prev = a;
     }
 
     return filtered;
 }
+
+
+// vector<double> lowPassFilter(const vector<int16_t>& input, double cutoffFreq, int sampleRate) {
+//     // transfer function H(s) = 1 / (1 + sRC), where RC is the time constant
+
+//     vector<double> filtered(input.size(), 0.0);
+//     filtered.reserve(input.size());
+  
+
+
+//     double rc = 1.0 / (2*PI*cutoffFreq);
+//     double dt = 1.0/sampleRate;
+//     double alpha = dt/ (rc+ dt) ;
+//     double prev = static_cast<double>(input[0]);
+
+//     for(int i=0; i<input.size(); i++){   
+//         double a =   alpha * input[i] + (1-alpha)*prev;
+//         filtered.push_back(a) ;
+//         prev = a ;
+//     }
+//     // vector<double> coeff(filterSize);
+//     // int mid = filterSize / 2;
+
+//     // double normCutoff = cutoffFreq / sampleRate;
+
+//     // // Design low-pass filter kernel
+//     // for (int i = 0; i < filterSize; i++) {
+//     //     int n = i - mid;
+//     //     if (n == 0) {
+//     //         coeff[i] = 2 * normCutoff;
+//     //     } else {
+//     //         coeff[i] = sin(2 * PI * normCutoff * n) / (PI * n);
+//     //     }
+//     //     // Apply Hamming window
+//     //     coeff[i] *= 0.54 - 0.46 * cos(2 * PI * i / (filterSize - 1));
+//     // }
+
+//     // // Convolution
+//     // for (size_t i = mid; i < input.size() - mid; ++i) {
+//     //     double sum = 0.0;
+//     //     for (int j = 0; j < filterSize; ++j) {
+//     //         sum += static_cast<double>(input[i - mid + j]) * coeff[j];
+//     //     }
+//     //     filtered[i] = sum;
+//     // }
+
+//     return filtered;
+// }
 
 vector<int16_t> downsample(const vector<double>& signal, int originalRate, int targetRate) {
     int ratio = originalRate / targetRate;
     vector<int16_t> downsampled;
 
     for (size_t i = 0; i < signal.size(); i += ratio) {
-        downsampled.push_back(static_cast<int16_t>(signal[i]));
+        int end = i+ ratio;
+        if(end > signal.size()){
+            end = signal.size();
+        }
+
+        double sum = 0.0;
+        for(int j =i; j<end; j++){
+            sum += signal[j];
+        }
+
+        int16_t avg = sum/(end -i);
+        downsampled.push_back(avg);
     }
 
     return downsampled;
 }
 
-int computeSafeDownsampleRate(int originalRate, int cutoffFreq = 5000) {
-    int minRequiredRate = 2 * cutoffFreq;
+// int computeSafeDownsampleRate(int originalRate, int cutoffFreq = 5000) {
+//     int minRequiredRate = 2 * cutoffFreq;
 
-    // Common safe audio rates (sorted low to high)
-    vector<int> candidates = {8000, 11025, 12000, 16000, 22050, 24000, 32000, 44100};
+//     // Common safe audio rates (sorted low to high)
+//     vector<int> candidates = {8000, 11025, 12000, 16000, 22050, 24000, 32000, 44100};
 
-    for (int r : candidates) {
-        if (r >= minRequiredRate && originalRate % r == 0) {
-            return r;
-        }
-    }
+//     for (int r : candidates) {
+//         if (r >= minRequiredRate && originalRate % r == 0) {
+//             return r;
+//         }
+//     }
 
-    // No safe divisor found — fall back to original rate (no downsampling)
-    return originalRate;
-}
+//     // No safe divisor found — fall back to original rate (no downsampling)
+//     return originalRate;
+// }
 
 vector<vector<uint8_t>> normalizeSpectrogram(const vector<vector<complex<double>>>& spec) {
     double minVal = DBL_MAX, maxVal = DBL_MIN;
-    for (const auto& row : spec)
-        for (complex<double> val : row)
-            minVal = min(minVal, abs(val)), maxVal = max(maxVal, abs(val));
+    for (const auto& row : spec) {
+        for (complex<double> val : row) {
+            double mag = log10(1 + abs(val)); 
+            minVal = min(minVal, mag);
+            maxVal = max(maxVal, mag);
+        }
+    }
+
     double range = maxVal - minVal;
     if (range == 0) range = 1;
+
     vector<vector<uint8_t>> norm(spec.size(), vector<uint8_t>(spec[0].size()));
-    for (size_t i = 0; i < spec.size(); ++i)
-        for (size_t j = 0; j < spec[0].size(); ++j)
-            norm[i][j] = static_cast<uint8_t>(255.0 * (abs(spec[i][j]) - minVal) / range);
+    for (size_t i = 0; i < spec.size(); ++i) {
+        for (size_t j = 0; j < spec[0].size(); ++j) {
+            double mag = log10(1 + abs(spec[i][j])); // again here
+            norm[i][j] = static_cast<uint8_t>(255.0 * (mag - minVal) / range);
+        }
+    }
+
     return norm;
 }
 
@@ -362,8 +424,9 @@ vector<Peak> extractPeakFrequencies (const vector<vector<complex<double>>>& spec
                 auto a = (sp.freq_indx * frameDuration)/frame_i.size();
                 auto b = i*frameDuration + a;
                 peak.time = b;
+                peaks.push_back(peak);
             }
-            peaks.push_back(peak);
+            
         }
 
     }
@@ -378,20 +441,31 @@ int main(){
     WAVheader header = extract_header(filename);
 
     vector<int16_t> PCMsamples = readPSMdata(filename, header);
+    // for(int i=0; i<100; i++){
+    //     cout<<PCMsamples[i]<<" ";
+    // }
     // cout<<PCMsamples.size()<<endl;
 
     
     int originalRate = header.sample_rate;
-    int targetRate = computeSafeDownsampleRate(originalRate);
+    int targetRate = originalRate/4 ;
 
-    if (targetRate != originalRate) {
-        cout << "Downsampling from " << originalRate << " Hz to " << targetRate << " Hz\n";
-    } else {
-        cout << "Keeping original rate: " << originalRate << " Hz (no downsampling applied)\n";
-    }
+    // if (targetRate != originalRate) {
+    //     cout << "Downsampling from " << originalRate << " Hz to " << targetRate << " Hz\n";
+    // } else {
+    //     cout << "Keeping original rate: " << originalRate << " Hz (no downsampling applied)\n";
+    // }
 
+    
+    double max_Freq = 5000.0 ; // remove all from 20hz to 5Khz
 
-    auto filtered = lowPassFilter(PCMsamples, 5000.0, originalRate);
+    auto filtered = lowPassFilter(PCMsamples, max_Freq, originalRate) ; 
+
+    // for(int i=0; i<100; i++){
+    //     cout<<filtered[i]<<" ";
+    // }
+    cout<<endl;
+
     auto downsampled = downsample(filtered, originalRate, targetRate);
 
     // cout<<downsampled.size()<<endl;
@@ -402,7 +476,7 @@ int main(){
     int frame_size = 1024;
     int hop_size = frame_size/32;  // 512
 
-    vector<vector<complex<double>>> spectrogram = frameSignal(downsampled, frame_size, hop_size);
+    vector<vector<complex<double>>> spectrogram = frameSignal(downsampled, frame_size, hop_size, originalRate);
 
     cout<<"number of frames: "<<spectrogram.size()<<endl;
     cout<<("spectrogram made")<<endl;
@@ -413,7 +487,7 @@ int main(){
 
     cout<<("file saved")<<endl;
 
-    double audioDuration = downsampled.size()/targetRate ; 
+    double audioDuration = downsampled.size()/targetRate ; // this line has issue
     
     vector<Peak> peaks = extractPeakFrequencies(spectrogram, audioDuration);
     cout<<("peaks extracted")<<endl;
