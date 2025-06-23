@@ -12,9 +12,7 @@
 
 using namespace std;
 
-vector<pair<int, int>> band_ranges = {
-    {0, 10}, {10, 20}, {20, 40}, {40, 80}, {80, 160}, {160, 511}
-};
+
 
 
 const double PI = acos(-1);
@@ -39,9 +37,17 @@ struct WAVheader{
 
 };
 
-struct Peaks{
+struct Peak{
     double time;
     complex<double> freq ;
+};
+
+struct Band{
+    int min, max;
+};
+
+vector<Band> band_ranges = {
+    {0, 10}, {10, 20}, {20, 40}, {40, 80}, {80, 160}, {160, 511}
 };
 
 
@@ -271,61 +277,96 @@ void saveSpectrogramAsPPM(const vector<vector<uint8_t>>& normSpec, const string&
 }
 
 
-// vector<vector<int>> extractPeakFrequencies(const vector<vector<complex<double>>>& spectrogram) {
-//     // this needs to return the freq and the time at which that peak occurs in the audio
-//     vector<vector<int>> peak_freqs_per_frame;
-//     for (const auto& frame : spectrogram) {
-//         vector<pair<int, double>> peaks;  // (bin index, magnitude)
-//         // Step 1: Get strongest freq in each band
-//         for (auto [start, end] : band_ranges) {
-//             int max_bin = -1;
-//             double max_mag = -1.0;
-//             for (int i = start; i <= end && i < frame.size(); i++) {
-//                 if (frame[i] > max_mag) {
-//                     max_mag = frame[i];
-//                     max_bin = i;
-//                 }
-//             }
-//             if (max_bin != -1)
-//                 peaks.emplace_back(max_bin, max_mag);
-//         }
-//         // Step 2: Compute average of magnitudes
-//         double sum = 0;
-//         for (const auto& [bin, mag] : peaks) sum += mag;
-//         double avg = peaks.empty() ? 0 : sum / peaks.size();
-//         // Step 3: Keep only peaks ≥ average
-//         vector<int> strong_bins;
-//         for (const auto& [bin, mag] : peaks) {
-//             if (mag >= avg)
-//                 strong_bins.push_back(bin);
-//         }
-//         peak_freqs_per_frame.push_back(strong_bins);
-//     }
-//     return peak_freqs_per_frame;
-// }
-// int fingerPrint(){
 //     // Fingerprint generates fingerprints from a list of peaks and stores them in an array.
 //     // Each fingerprint consists of an address and a couple.
 //     // The address is a hash. The couple contains the anchor time and the song ID.
 // }
 
+struct strongPoint{
+    double magnitude;
+    complex<double> freq; 
+    size_t freq_indx; // the index of that max freq in that frame. 
+};
 
-vector<Peaks> extractPeakFrequencies (const vector<vector<complex<double>>>& spec, double duration){
-    vector<Peaks> peaks;
-    if(spec.empty()){
-        return peaks;
-    }
 
+
+
+vector<Peak> extractPeakFrequencies (const vector<vector<complex<double>>>& spec, double audioDuration){
+    vector<Peak> peaks;
     // get strongest freq in each band per frame 
+
+    double frameDuration = audioDuration / spec.size();
+
+
+    for (size_t i =0; i<spec.size(); i++){
+        // i is frame index
+        
+       // // per frame we want to get strogest freq per band
+        
+
+
+        vector<strongPoint> strongPoints_of_frame_i(band_ranges.size());
+        const vector<complex<double>>& frame_i = spec[i];
+
+        for(const auto& band: band_ranges){
+            strongPoint a; // max of that band. so strongpoint of that band
+            // for each band, one strongPoint
+            
+            double maxMag = numeric_limits<double>::lowest();
+
+            // make band into a struct with min and max fields 
+
+            for (int j = 0; j < band.max - band.min; j++) {
+                int realIdx = band.min + j;
+
+                
+
+                complex<double> freq = frame_i[realIdx];
+                double magnitude = abs(freq);
+
+                if (magnitude > maxMag) {
+                maxMag = magnitude;
+                a.freq = freq;
+                a.magnitude = magnitude;
+                a.freq_indx = realIdx;
+                }
+            }
+            strongPoints_of_frame_i.push_back(a);
+                
+        }     
+
+        // out of these 6 stringPoints, get the avg magnitude from them
+        double sum =0;    
+        for(const auto& sp: strongPoints_of_frame_i){
+            sum+= sp.magnitude;
+        }
+        double avgMag = sum / strongPoints_of_frame_i.size();
+
+        // all the values tat are greater than the avg, add those as final peaks
+        for(const auto& sp: strongPoints_of_frame_i){
+            Peak peak ;
+            if(sp.magnitude >= avgMag){               
+                peak.freq = sp.freq;
+                auto a = (sp.freq_indx * frameDuration)/frame_i.size();
+                auto b = i*frameDuration + a;
+                peak.time = b;
+            }
+            peaks.push_back(peak);
+        }
+
+    }
     return peaks;
 
-}
+} 
+    
+
+
 int main(){
     string filename = "file_example_WAV_1MG.wav";
     WAVheader header = extract_header(filename);
 
     vector<int16_t> PCMsamples = readPSMdata(filename, header);
-    cout<<PCMsamples.size()<<endl;
+    // cout<<PCMsamples.size()<<endl;
 
     
     int originalRate = header.sample_rate;
@@ -340,6 +381,8 @@ int main(){
 
     auto filtered = lowPassFilter(PCMsamples, 5000.0, originalRate);
     auto downsampled = downsample(filtered, originalRate, targetRate);
+
+    // cout<<downsampled.size()<<endl;
 
     cout<<("downsampled")<<endl;
 
@@ -379,6 +422,8 @@ int main(){
 
     cout<<("spectrogram made")<<endl;
 
+    // cout<<spectrogram[50].size()<<endl;
+
     
 
 
@@ -390,7 +435,11 @@ int main(){
     // auto peak_freqs = extractPeakFrequencies(spectrogram);
     // cout<<("peak freq identified")<<endl;
     // // cout<<peak_freqs[500][0]<<endl;
+
+    double audioDuration = downsampled.size()/targetRate ; 
     
+    vector<Peak> peaks = extractPeakFrequencies(spectrogram, audioDuration);
+    cout<<("peaks extracted")<<endl;
     return 0;
 
 }
