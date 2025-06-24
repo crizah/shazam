@@ -6,6 +6,8 @@
 #include <complex>
 #include <cfloat>
 #include <algorithm>
+#include <map>
+#include <unordered_map>
 #include <typeinfo>
 
 
@@ -212,52 +214,6 @@ vector<double> lowPassFilter(const vector<int16_t>& input, double cutoffFreq, in
 }
 
 
-// vector<double> lowPassFilter(const vector<int16_t>& input, double cutoffFreq, int sampleRate) {
-//     // transfer function H(s) = 1 / (1 + sRC), where RC is the time constant
-
-//     vector<double> filtered(input.size(), 0.0);
-//     filtered.reserve(input.size());
-  
-
-
-//     double rc = 1.0 / (2*PI*cutoffFreq);
-//     double dt = 1.0/sampleRate;
-//     double alpha = dt/ (rc+ dt) ;
-//     double prev = static_cast<double>(input[0]);
-
-//     for(int i=0; i<input.size(); i++){   
-//         double a =   alpha * input[i] + (1-alpha)*prev;
-//         filtered.push_back(a) ;
-//         prev = a ;
-//     }
-//     // vector<double> coeff(filterSize);
-//     // int mid = filterSize / 2;
-
-//     // double normCutoff = cutoffFreq / sampleRate;
-
-//     // // Design low-pass filter kernel
-//     // for (int i = 0; i < filterSize; i++) {
-//     //     int n = i - mid;
-//     //     if (n == 0) {
-//     //         coeff[i] = 2 * normCutoff;
-//     //     } else {
-//     //         coeff[i] = sin(2 * PI * normCutoff * n) / (PI * n);
-//     //     }
-//     //     // Apply Hamming window
-//     //     coeff[i] *= 0.54 - 0.46 * cos(2 * PI * i / (filterSize - 1));
-//     // }
-
-//     // // Convolution
-//     // for (size_t i = mid; i < input.size() - mid; ++i) {
-//     //     double sum = 0.0;
-//     //     for (int j = 0; j < filterSize; ++j) {
-//     //         sum += static_cast<double>(input[i - mid + j]) * coeff[j];
-//     //     }
-//     //     filtered[i] = sum;
-//     // }
-
-//     return filtered;
-// }
 
 vector<int16_t> downsample(const vector<double>& signal, int originalRate, int targetRate) {
     int ratio = originalRate / targetRate;
@@ -283,16 +239,13 @@ vector<int16_t> downsample(const vector<double>& signal, int originalRate, int t
 
 // int computeSafeDownsampleRate(int originalRate, int cutoffFreq = 5000) {
 //     int minRequiredRate = 2 * cutoffFreq;
-
 //     // Common safe audio rates (sorted low to high)
 //     vector<int> candidates = {8000, 11025, 12000, 16000, 22050, 24000, 32000, 44100};
-
 //     for (int r : candidates) {
 //         if (r >= minRequiredRate && originalRate % r == 0) {
 //             return r;
 //         }
 //     }
-
 //     // No safe divisor found — fall back to original rate (no downsampling)
 //     return originalRate;
 // }
@@ -350,20 +303,82 @@ void saveSpectrogramAsPPM(const vector<vector<uint8_t>>& normSpec, const string&
     file.close();
 }
 
+struct Hash{
+    int a_frequency; // anchor frequency
+    int t_frequency; // target frequency
+    uint32_t time ; // target_time - anchor time
+};
 
-//     // Fingerprint generates fingerprints from a list of peaks and stores them in an array.
-//     // Each fingerprint consists of an address and a couple.
-//     // The address is a hash. The couple contains the anchor time and the song ID.
-// }
+uint32_t compressHah(Hash& hash){
+    uint32_t address = (static_cast<uint32_t>(hash.a_frequency) << 23) |
+                       (static_cast<uint32_t>(hash.t_frequency) << 14) |
+                        hash.time;
+    return address;
+}
+
+
+unordered_map<uint32_t, vector<uint32_t>> fingerPrint(vector<Peak> &peaks, uint32_t &songID, int range=5){
+    // each peak as an anchor and identify 5 nearby targets within a fixed range
+    // for each anchor target pair, create a hash= encode(anchor.frequency, target.frequency, target.time-anchor.time)
+    // compact this hash into uint_32t as hash_i
+    // data stored in a hashmap where key is hash_i and value is [(achor_i.time, songID)]
+
+    unordered_map<uint32_t, vector<uint32_t>> fp;
+    for(int i=0; i<peaks.size(); i++){
+        // per anchor
+        for(int j =i+1; j <= i + range && j<peaks.size(); j++){
+            Peak anchor = peaks[i];
+            Peak target = peaks[j];
+            
+            
+            // per target
+            // calculate hash
+           
+            int anchor_freq = static_cast<int>(real(anchor.freq)); 
+            int target_freq = static_cast<int>(real(target.freq));
+            uint32_t time_diff = static_cast<uint32_t>((target.time - anchor.time)*1000);
+            Hash h = {anchor_freq, target_freq, time_diff};
+
+            // compress hash into uint_32t
+            uint32_t hash_i = compressHah(h);
+
+
+            // create the value for hashmap per hash
+            vector<uint32_t> val;
+
+            // cout<<static_cast<uint32_t>(anchor.time*1000)<<", ";
+            
+            uint32_t anchor_time = static_cast<uint32_t>(anchor.time* 1000);
+
+            val.push_back(anchor_time);
+            val.push_back(songID);
+            
+
+            // cout<<anchor_time<<", "<<songID<<"| ";
+            // val[0] is anchor_time and val[1] is songID
+
+
+            // push it onto the map
+            fp[hash_i] = val;
+
+            cout<<val[0]<<", "<<val[1]<<"|";
+
+        }
+
+    }
+
+    cout<<endl;
+    return fp;
+
+}
+
+
 
 struct strongPoint{
     double magnitude;
     complex<double> freq; 
     size_t freq_indx; // the index of that max freq in that frame. 
 };
-
-
-
 
 vector<Peak> extractPeakFrequencies (const vector<vector<complex<double>>>& spec, double audioDuration){
     vector<Peak> peaks;
@@ -433,6 +448,8 @@ vector<Peak> extractPeakFrequencies (const vector<vector<complex<double>>>& spec
     return peaks;
 
 } 
+
+
     
 
 
@@ -487,11 +504,23 @@ int main(){
 
     cout<<("file saved")<<endl;
 
-    double audioDuration = downsampled.size()/targetRate ; // this line has issue
+    double audioDuration = downsampled.size()/targetRate ; 
     
     vector<Peak> peaks = extractPeakFrequencies(spectrogram, audioDuration);
     cout<<("peaks extracted")<<endl;
+    cout<<("no. of peaks: ")<<peaks.size()<<endl;
+
+
+
+    uint32_t songID =0;
+
+    unordered_map<uint32_t, vector<uint32_t>> FP = fingerPrint(peaks, songID);
+    cout<<("fingerPrint generated")<<endl;
+
+    
     return 0;
 
 }
+
+
 
