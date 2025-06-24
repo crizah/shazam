@@ -20,6 +20,8 @@ using namespace std;
 
 const double PI = acos(-1);
 
+unordered_map<uint32_t, vector<vector<uint32_t>>> fp;
+
 struct WAVheader{
 
     // https://docs.fileformat.com/audio/wav/
@@ -317,13 +319,19 @@ uint32_t compressHah(Hash& hash){
 }
 
 
-unordered_map<uint32_t, vector<uint32_t>> fingerPrint(vector<Peak> &peaks, uint32_t &songID, int range=5){
+void fingerPrint(vector<Peak> &peaks, uint32_t &songID, int range=5){
     // each peak as an anchor and identify 5 nearby targets within a fixed range
     // for each anchor target pair, create a hash= encode(anchor.frequency, target.frequency, target.time-anchor.time)
     // compact this hash into uint_32t as hash_i
     // data stored in a hashmap where key is hash_i and value is [(achor_i.time, songID)]
 
-    unordered_map<uint32_t, vector<uint32_t>> fp;
+
+    // diff songs can generate same hash or same songs might also idk 
+    // so if that happens, the array of the new song will also be added under that hash
+    // so stored in a vector
+
+
+
     for(int i=0; i<peaks.size(); i++){
         // per anchor
         for(int j =i+1; j <= i + range && j<peaks.size(); j++){
@@ -333,6 +341,7 @@ unordered_map<uint32_t, vector<uint32_t>> fingerPrint(vector<Peak> &peaks, uint3
             
             // per target
             // calculate hash
+           
            
             int anchor_freq = static_cast<int>(real(anchor.freq)); 
             int target_freq = static_cast<int>(real(target.freq));
@@ -353,25 +362,18 @@ unordered_map<uint32_t, vector<uint32_t>> fingerPrint(vector<Peak> &peaks, uint3
             val.push_back(anchor_time);
             val.push_back(songID);
             
-
-            // cout<<anchor_time<<", "<<songID<<"| ";
-            // val[0] is anchor_time and val[1] is songID
-
-
-            // push it onto the map
-            fp[hash_i] = val;
-
-            cout<<val[0]<<", "<<val[1]<<"|";
+            fp[hash_i].push_back(val);
+            
+            // cout<<val[0]<<", "<<val[1]<<"|";
 
         }
 
     }
 
-    cout<<endl;
-    return fp;
+
+    return ;
 
 }
-
 
 
 struct strongPoint{
@@ -450,43 +452,25 @@ vector<Peak> extractPeakFrequencies (const vector<vector<complex<double>>>& spec
 } 
 
 
-    
-
-
 int main(){
     string filename = "file_example_WAV_1MG.wav";
     WAVheader header = extract_header(filename);
 
     vector<int16_t> PCMsamples = readPSMdata(filename, header);
-    // for(int i=0; i<100; i++){
-    //     cout<<PCMsamples[i]<<" ";
-    // }
-    // cout<<PCMsamples.size()<<endl;
 
     
     int originalRate = header.sample_rate;
     int targetRate = originalRate/4 ;
 
-    // if (targetRate != originalRate) {
-    //     cout << "Downsampling from " << originalRate << " Hz to " << targetRate << " Hz\n";
-    // } else {
-    //     cout << "Keeping original rate: " << originalRate << " Hz (no downsampling applied)\n";
-    // }
-
     
     double max_Freq = 5000.0 ; // remove all from 20hz to 5Khz
 
     auto filtered = lowPassFilter(PCMsamples, max_Freq, originalRate) ; 
-
-    // for(int i=0; i<100; i++){
-    //     cout<<filtered[i]<<" ";
-    // }
     cout<<endl;
 
     auto downsampled = downsample(filtered, originalRate, targetRate);
 
-    // cout<<downsampled.size()<<endl;
-
+ 
     cout<<("downsampled")<<endl;
 
 
@@ -514,8 +498,9 @@ int main(){
 
     uint32_t songID =0;
 
-    unordered_map<uint32_t, vector<uint32_t>> FP = fingerPrint(peaks, songID);
+    fingerPrint(peaks, songID);
     cout<<("fingerPrint generated")<<endl;
+
 
     
     return 0;
