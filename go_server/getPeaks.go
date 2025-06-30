@@ -2,21 +2,6 @@ package main
 
 import "math/cmplx"
 
-type Peak struct {
-	Time      float64
-	Frequency complex128
-}
-
-type StrongPoint struct {
-	freq     complex128
-	mag      float64
-	freq_idx int
-}
-
-type Band struct {
-	min, max int
-}
-
 var band_ranges = []Band{
 	{0, 10}, {10, 20}, {20, 40}, {40, 80}, {80, 160}, {160, 511}, // so weird i have to add a comma at the end here
 }

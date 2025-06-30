@@ -8,25 +8,6 @@ import (
 	"os"
 )
 
-type WAVHeader struct {
-
-	// https://docs.fileformat.com/audio/wav/
-
-	Riff            [4]byte
-	File_size       uint32
-	Wave            [4]byte
-	Fmt             [4]byte
-	Length          uint32
-	Format          uint16
-	Channels        uint16
-	SampleRate      uint32
-	Byte_rate       uint32
-	Block_allign    uint16
-	Bits_per_sample uint16
-	Data            [4]byte
-	Data_size       uint32
-}
-
 func extractHeader(filename string) (WAVHeader, error) {
 	var header WAVHeader
 
@@ -43,11 +24,6 @@ func extractHeader(filename string) (WAVHeader, error) {
 	}
 
 	return header, nil
-}
-
-type Info struct {
-	sampleRate    int
-	audioDuration float64
 }
 
 func getMetaData(header WAVHeader) Info {

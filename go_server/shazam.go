@@ -51,4 +51,11 @@ func main() {
 	fp := getFingerPrint(peaks, 12)
 	fmt.Println("fingerprint generation done", len(fp)) // should be same as peaks
 
+	err4 := insertFPintoDB(fp)
+	if err4 != nil {
+		panic(err4)
+	}
+
+	fmt.Println("fingerprint inserted into db")
+
 }

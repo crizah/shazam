@@ -21,7 +21,7 @@ using namespace std;
 
 const double PI = acos(-1);
 
-unordered_map<uint32_t, vector<vector<uint32_t>>> fp;
+
 
 struct WAVheader{
 
@@ -57,6 +57,8 @@ vector<Band> band_ranges = {
 };
 
 
+//  5b61cc51590f29a84631937134cf30617bad72be
+//  e8944d56bedd2fab086e3bcbc636dd8fd792e902
 
 WAVheader extract_header(const string& filename) {
 
@@ -138,15 +140,17 @@ vector<double> hann(int frame_size){
 }
 
 
-int freqToBin(double freq, int fftSize, double sampleRate) {
-    return static_cast<int>((freq / sampleRate) * fftSize);
-}
+// int freqToBin(double freq, int fftSize, double sampleRate) {
+//     return static_cast<int>((freq / sampleRate) * fftSize);
+// }
 
 vector<vector<complex<double>>> frameSignal(const vector<int16_t>& pcm, int frame_size, int hop_size, double originalRate){
-    // divide into frames and apply hann function to smooth outedges
+    // divide into frames and apply hann function to smooth outedges and apply fft
 
     vector<vector<complex<double>>> frames;
     vector<double> window = hann(frame_size);
+
+    // cout<<window.size()<<endl;
 
     // size_t numFrames = (pcm.size() - frame_size) / hop_size + 1;
     size_t numFrames = pcm.size()  / frame_size - hop_size ;
@@ -177,15 +181,6 @@ vector<vector<complex<double>>> frameSignal(const vector<int16_t>& pcm, int fram
 
         fft(freq);
 
-        // double targetRate = originalRate/4;
-        
-        // int minBin = freqToBin(20.0, freq.size(), targetRate);
-        // int maxBin = freqToBin(5000.0, freq.size(), targetRate);
-        // if (maxBin > freq.size()) maxBin = freq.size() - 1;
-
-        // vector<complex<double>> cropped;
-        // for (int j = minBin; j <= maxBin; j++)
-        //     cropped.push_back(freq[j]);
 
         frames.push_back(freq);
 
@@ -207,6 +202,8 @@ vector<double> lowPassFilter(const vector<int16_t>& input, double cutoffFreq, in
     double rc = 1.0 / (2 * PI * cutoffFreq);
     double dt = 1.0 / sampleRate;
     double alpha = dt / (rc + dt);
+
+    // cout<<rc<<(", ")<<dt<<(", ")<<alpha<<endl;
 
     double prev = static_cast<double>(input[0]);
 
@@ -323,7 +320,7 @@ uint32_t compressHah(Hash& hash){
 }
 
 
-void fingerPrint(vector<Peak> &peaks, uint32_t &songID, int range=5){
+unordered_map<uint32_t, vector<vector<uint32_t>>> fingerPrint(vector<Peak> &peaks, uint32_t &songID, int range=5){
     // each peak as an anchor and identify 5 nearby targets within a fixed range
     // for each anchor target pair, create a hash= encode(anchor.frequency, target.frequency, target.time-anchor.time)
     // compact this hash into uint_32t as hash_i
@@ -333,6 +330,8 @@ void fingerPrint(vector<Peak> &peaks, uint32_t &songID, int range=5){
     // diff songs can generate same hash or same songs might also idk 
     // so if that happens, the array of the new song will also be added under that hash
     // so stored in a vector
+
+    unordered_map<uint32_t, vector<vector<uint32_t>>> fp;
 
 
 
@@ -384,7 +383,7 @@ void fingerPrint(vector<Peak> &peaks, uint32_t &songID, int range=5){
     }
 
 
-    return ;
+    return fp;
 
 }
 
@@ -422,10 +421,7 @@ vector<Peak> extractPeakFrequencies (const vector<vector<complex<double>>>& spec
 
             for (int j = 0; j < band.max - band.min; j++) {
                 int realIdx = band.min + j;
-
-                
-
-                complex<double> freq = frame_i[realIdx];
+                complex<double> freq = frame_i[realIdx]; // j
                 double magnitude = abs(freq);
 
                 if (magnitude > maxMag) {
@@ -474,14 +470,23 @@ int main(){
     
     int originalRate = header.sample_rate;
     int targetRate = originalRate/4 ;
+    cout<<PCMsamples.size()<<endl;
+
+    for(int i=0; i<10; i++){
+        cout<<PCMsamples[i]<<", ";
+    }
+    cout<<endl;
 
     
     double max_Freq = 5000.0 ; // remove all from 20hz to 5Khz
 
+
     auto filtered = lowPassFilter(PCMsamples, max_Freq, originalRate) ; 
-    cout<<endl;
+    cout<<(filtered.size())<<endl;
 
     auto downsampled = downsample(filtered, originalRate, targetRate);
+
+    cout<<(downsampled.size())<<endl;
 
  
     cout<<("downsampled")<<endl;
@@ -494,12 +499,13 @@ int main(){
 
     cout<<"number of frames: "<<spectrogram.size()<<endl;
     cout<<("spectrogram made")<<endl;
+    cout<<spectrogram.size()<<endl;
 
 
-    auto norm = normalizeSpectrogram(spectrogram);
-    saveSpectrogramAsPPM(norm, "spectrogram.ppm");
+    // auto norm = normalizeSpectrogram(spectrogram);
+    // saveSpectrogramAsPPM(norm, "spectrogram.ppm"); // still works 
 
-    cout<<("file saved")<<endl;
+    // cout<<("file saved")<<endl;
 
     double audioDuration = downsampled.size()/targetRate ; 
     
@@ -510,16 +516,19 @@ int main(){
 
 
     uint32_t songID =0;
+    unordered_map<uint32_t, vector<vector<uint32_t>>> fp;
 
-    fingerPrint(peaks, songID);
+    fp = fingerPrint(peaks, songID);
 
-    cout<<("fingerPrint generated")<<endl;
+    cout<<("fingerPrint generated of size: ", fp.size()) <<endl;
 
     
    
     return 0;
 
 }
+
+
 
 
 
