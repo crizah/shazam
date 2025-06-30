@@ -22,6 +22,8 @@ var band_ranges = []Band{
 }
 
 func findPeaks(spectrogram [][]complex128, audioDuration float64) []Peak {
+	// error here
+
 	var peaks []Peak
 	frameDuration := audioDuration / float64(len(spectrogram))
 
@@ -69,6 +71,7 @@ func findPeaks(spectrogram [][]complex128, audioDuration float64) []Peak {
 				a := float64(s.freq_idx) * frameDuration / float64(len(frame))
 				b := float64(i) * frameDuration
 				peak.Time = a + b
+				peaks = append(peaks, peak)
 			}
 		}
 
