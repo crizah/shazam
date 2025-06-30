@@ -48,5 +48,7 @@ func main() {
 	info := getMetaData(header)
 	peaks := findPeaks(spectrogram, info.audioDuration)
 	fmt.Println("number of peaks extracted: ", len(peaks))
+	fp := getFingerPrint(peaks, 12)
+	fmt.Println("fingerprint generation done", len(fp)) // should be same as peaks
 
 }
