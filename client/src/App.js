@@ -1,6 +1,8 @@
 import React, { useState } from "react";
 
-const access_token = "BQBAejPAh-rj0JsLkmFVOY6JIGeABgMnngyrDEu_tjtInlqrWoUW3saI_QhPgzchkQ7-2s7FDJAPmMntJY0bZwkSnAeL8XUiT7XCE4RSAuED6olfUrhktzfRh2SKMHsWI9KlRc7hbLY"; 
+import sha1 from "js-sha1"; 
+
+const access_token ="BQClpBwThSgzZS2SGiaaZJI77BOLv1Zms6YNjLM3FncqFBIger1cq9hnrF4OTkqrRbMVvV3F1n2hgnRZpHXWEK_mZjNihTGcLt-gvmlCwFNp9eycOFhoVfGb47DcEKYUCGRoOdiNZAw"; 
 
 
 // curl -X POST "https://accounts.spotify.com/api/token" \
@@ -8,50 +10,158 @@ const access_token = "BQBAejPAh-rj0JsLkmFVOY6JIGeABgMnngyrDEu_tjtInlqrWoUW3saI_Q
 //      -d "grant_type=client_credentials&client_id=4cfb127f9a3549a598aad3e5bda188f2&client_secret=a6eeffd19d4a471dabe79fbbea15ab0f"
 
 
+function createSongID(name, artist, album) {
+  const input = name + artist + album;
+  const hash = sha1.arrayBuffer(input); // gives you raw bytes
+  const view = new DataView(hash);
+  return view.getUint32(0); // get first 4 bytes as uint32
+}
 
 function App() {
   const [playlistURL, setPlaylistURL] = useState(""); // const [state, setState] = useState(initialState)
+  // const [names, setNames] = useState([]); 
+  // const [artists, setArtists] = useState([]);
+  // const [albums, setAlbums] = useState([]);
   const [tracks, setTracks] = useState([]);
+  const [Results, setResults] = useState({});  // object, send this to Go server 
   const [status, setStatus] = useState("");
 
   const extractPlaylistId = (url) => {
     // https://open.spotify.com/playlist/54urz9eVTb5kDaAhAh2vHY
+
     const excess = "https://open.spotify.com/playlist/"
     return url.slice(excess.length); 
   };
 
-  const getPlaylistTracks = async(playlistId) => {
-    // strta here 
+//   const getPlaylistTracks = async (playlistId) => {
+//   const headers = {
+//     Authorization: `Bearer ${access_token}`,
+//   };
 
-    const headers = {
-      Authorization: `Bearer ${access_token}`,
-    };
+//   let a = new Map();
+//   let nextUrl = `https://api.spotify.com/v1/playlists/${playlistId}/tracks`;
 
-    let allTracks = [];
-    let nextUrl = `https://api.spotify.com/v1/playlists/${playlistId}/tracks`;
+//   while (nextUrl) {
+//     const res = await fetch(nextUrl, { headers });
+//     const data = await res.json();
 
-    while (nextUrl) {
+//     if (data.items) {
+//       const currentTrack = new Map();
 
-      const res = await fetch(nextUrl, { headers }); // stop and wait for fetch to go to nextUrl
-      const data = await res.json();
+//       for (let i = 0; i < data.items.length; i++) {
+//         const currentItem = data.items[i];
 
-      if (data.items) {
-        const currentTracks = data.items
-          .filter((item) => item.track)
-          .map((item) => {
-            const track = item.track;
-            const name = track.name;
-            const artists = track.artists.map((a) => a.name).join(", ");
-            return `${name} - ${artists}`;
-          });
-        allTracks = allTracks.concat(currentTracks);
+//         if (currentItem.track) {
+//           const track = currentItem.track;
+//           const name = track.name;
+//           let artists = "";
+//           const album = track.album.name;
+
+//           for (let j = 0; j < track.artists.length; j++) {
+//             artists += track.artists[j].name;
+//             if (j < track.artists.length - 1) {
+//               artists += ", ";
+//             }
+//           }
+
+//           const fullTitle = name + " - " + artists;
+//           const info = [name, artists, album];
+
+//           currentTrack.set(fullTitle, info);
+//         }
+//       }
+
+//       for (const [key, value] of currentTrack) {
+//         a.set(key, value);
+//       }
+//     }
+
+//     nextUrl = data.next;
+//   }
+
+//   return a;
+// };
+
+
+const getPlaylistTracks = async (playlistId) => {
+  const headers = {
+    Authorization: `Bearer ${access_token}`,
+  };
+
+  let result = {};
+
+  let nextUrl = `https://api.spotify.com/v1/playlists/${playlistId}/tracks`;
+
+  while (nextUrl) {
+    const res = await fetch(nextUrl, { headers });
+    const data = await res.json();
+
+    if (data.items) {
+      for (let i = 0; i < data.items.length; i++) {
+        const currentItem = data.items[i];
+
+        if (currentItem.track) {
+          const track = currentItem.track;
+          const name = track.name;
+          
+
+          const album = track.album.name;
+          
+
+          let artists = "";
+          
+
+          for (let j = 0; j < track.artists.length; j++) {
+            artists += track.artists[j].name;
+            if (j < track.artists.length - 1) {
+              artists += ", ";
+            }
+          }
+
+          const fullTitle = `${name} - ${artists}`;
+          const songId = createSongID(name, artists, album)
+
+          result[songId] = {
+            name: name,
+            artist: artists,
+            album: album,
+          };
+        }
       }
-
-      nextUrl = data.next;
     }
 
-    return allTracks;
-  };
+    nextUrl = data.next;
+  }
+
+  return result;
+};
+
+
+const sendResultsToGoServer = async (results) => {
+  try {
+    const response = await fetch("http://localhost:8080/get_songs", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(results),
+    });
+
+    if (!response.ok) {
+      throw new Error("Failed to send data");
+    }
+
+    const resultText = await response.text(); // or response.json() if server returns JSON
+    console.log("Server response:", resultText);
+    setStatus("Data sent to server successfully!");
+  } catch (err) {
+    console.error("Error sending to server:", err);
+    setStatus("Failed to send data to server");
+  }
+};
+
+
+
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -64,9 +174,17 @@ function App() {
     }
 
     try {
-      const result = await getPlaylistTracks(playlistId);
-      setTracks(result);
-      setStatus(`Fetched ${result.length} tracks`);
+      const result = await getPlaylistTracks(playlistId);     
+      setResults(result)  // send to Go server  
+      setTracks(Object.values(result)); // all the names, artists, and albums      
+      // setNames(Array.from(result.values()).map(val => val[0]));
+      // setArtists(Array.from(result.values()).map(val => val[1]));
+      // setAlbums(Array.from(result.values()).map(val => val[2]));
+
+      setStatus(`Fetched ${result.size} tracks`);
+
+      await sendResultsToGoServer(result);
+
     } catch (err) {
       console.error(err);
       setStatus("Failed to fetch tracks");
@@ -88,9 +206,11 @@ function App() {
       </form>
       <p>{status}</p>
       <ul>
-        {tracks.map((t, i) => (
-          <li key={i}>{t}</li>
-        ))}
+         {tracks.map((t, i) => (
+            <li key={i}>
+             {t.name} - {t.artist} - {t.album}
+            </li>
+          ))}
       </ul>
     </div>
   );
