@@ -2,13 +2,12 @@ import React, { useState } from "react";
 
 import sha1 from "js-sha1"; 
 
-const access_token ="BQClpBwThSgzZS2SGiaaZJI77BOLv1Zms6YNjLM3FncqFBIger1cq9hnrF4OTkqrRbMVvV3F1n2hgnRZpHXWEK_mZjNihTGcLt-gvmlCwFNp9eycOFhoVfGb47DcEKYUCGRoOdiNZAw"; 
+const access_token ="BQDm-0EquEg36CIPTVGhs0TPUZykenOwLZIAWcGwCAZPM72lYbIEda1HpDK5hOaiBXoHQGuCF3WKOwzHh2XFHbMJJMGGiCaix_Vyi1PvMn1MKCAq8Khkv-lrFX3qDLi-rkVg5ZozQXk";
 
 
 // curl -X POST "https://accounts.spotify.com/api/token" \
 //      -H "Content-Type: application/x-www-form-urlencoded" \
 //      -d "grant_type=client_credentials&client_id=4cfb127f9a3549a598aad3e5bda188f2&client_secret=a6eeffd19d4a471dabe79fbbea15ab0f"
-
 
 function createSongID(name, artist, album) {
   const input = name + artist + album;
