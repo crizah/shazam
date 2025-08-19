@@ -1,4 +1,4 @@
-package main
+package shazam
 
 // return PCM samples from WAV file. later nned to expand to convert any audio file to WAV format
 // later tho
@@ -128,14 +128,6 @@ func getPSMData(input []byte) []float64 {
 		sample := int16(binary.LittleEndian.Uint16(input[start : start+2]))
 		output[i] = float64(sample)
 	}
-
-	// for i := 0; i < len(input); i += 2 {
-	// 	// Interpret bytes as a 16-bit signed integer (little-endian)
-	// 	sample := int16(binary.LittleEndian.Uint16(input[i : i+2]))
-
-	// 	// Scale the sample to the range [-1, 1]
-	// 	output[i/2] = float64(sample) / 32768.0
-	// }
 
 	return output
 
