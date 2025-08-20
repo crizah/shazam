@@ -1,5 +1,9 @@
 package shazam
 
+import (
+	"shazam/db"
+)
+
 // do the processing of the file
 // finger printing on that process
 // matching
@@ -26,7 +30,13 @@ package shazam
 // cluster of points forming a diagonal line within the
 // scatterplot.
 
-func FindMatches(sample []float64, sampleRate int, audioDuration float64, songId uint32) error {
+// type Matched struct {
+// 	SampleTime  uint32
+// 	MatchedTime uint32
+// 	DBsongId    uint32
+// }
+
+func FindMatches(sample []float64, sampleRate int, audioDuration float64, songId uint32) ([]db.Matched, error) {
 
 	spectrogram := getSpectrogram(sample, sampleRate, 5000.0, sampleRate/4)
 	peaks := findPeaks(spectrogram, audioDuration)
@@ -35,36 +45,33 @@ func FindMatches(sample []float64, sampleRate int, audioDuration float64, songId
 	// search fp in the database
 
 	for h, info := range fp {
-		matched := SearchDB(h, info.anchor_time)
+		matched, err := db.SearchDB(h, info.Anchor_time) // returns all the hashes matvhed with this one, diff songIDs
+		if err != nil {
+
+			continue // go to next guy
+
+			// return matched, err
+		}
+
+		// create a hashtable for each song with id as matched hash and value as matched trime
+
+		// based on diff songId, neds to be seperated into bins
+
 	}
 
-	// m := make(map[uint32]uint32)
-	// for h, info := range fp {
-	// 	m[h] = info.anchor_time
-	// }
-
-	// search in db
-
-	return nil
-
 }
 
-type Matched struct {
-	SampleTime  uint32
-	MatchedTime uint32
-	DBsongId    uint32
-}
+// func Get(hash uint32, sampleTime uint32) []Matched {
 
-func SearchDB(hash uint32, sampleTime uint32) []Matched {
+// 	// For
+// 	// each matching hash found in the database, the
+// 	// corresponding offset times from the beginning of the
+// 	// sample and database files are associated into time pairs.
+// 	// The time pairs are distributed into bins according to the
+// 	// track ID associated with the matching database hash.
 
-	// For
-	// each matching hash found in the database, the
-	// corresponding offset times from the beginning of the
-	// sample and database files are associated into time pairs.
-	// The time pairs are distributed into bins according to the
-	// track ID associated with the matching database hash.
+// 	var result []Matched
 
-	var result Matched
-	return result
+// 	return result
 
-}
+// }
