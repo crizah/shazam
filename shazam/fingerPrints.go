@@ -1,15 +1,12 @@
 package shazam
 
-type Information struct {
-	Anchor_time uint32
-	SongID      uint32
-}
+import "shazam/structs"
 
 const (
 	r = 10
 )
 
-func GetFingerPrint(peaks []Peak, songId uint32) map[uint32]Information {
+func GetFingerPrint(peaks []Peak, songId uint32) map[uint32]structs.Information {
 
 	// 	Fingerprint hashes are formed from the constellation map,
 	// in which pairs of time-frequency points are combinatorially
@@ -25,7 +22,7 @@ func GetFingerPrint(peaks []Peak, songId uint32) map[uint32]Information {
 	// respective file to its anchor point, though the absolute time
 	// is not a part of the hash itself.
 
-	var fingerPrint = make(map[uint32]Information)
+	var fingerPrint = make(map[uint32]structs.Information)
 	for i, anchor := range peaks {
 		// per anchor
 		for j := i + 1; j < i+r && j < len(peaks); j++ {
@@ -41,7 +38,8 @@ func GetFingerPrint(peaks []Peak, songId uint32) map[uint32]Information {
 			hash_i := compressHash(h)
 
 			anchor_time := uint32(anchor.Time * 1000)
-			info := Information{anchor_time, songId}
+
+			info := structs.Information{anchor_time, songId}
 			// intermediate := []uint32{anchor_time, songId}
 			fingerPrint[hash_i] = info
 		}

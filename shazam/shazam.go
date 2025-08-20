@@ -1,8 +1,6 @@
 package shazam
 
-import (
-	"shazam/db"
-)
+import "shazam/db"
 
 // do the processing of the file
 // finger printing on that process
@@ -30,48 +28,35 @@ import (
 // cluster of points forming a diagonal line within the
 // scatterplot.
 
-// type Matched struct {
-// 	SampleTime  uint32
-// 	MatchedTime uint32
-// 	DBsongId    uint32
-// }
+// NEED TO DO ALL ERROR HANDELING
 
-func FindMatches(sample []float64, sampleRate int, audioDuration float64, songId uint32) ([]db.Matched, error) {
+func FindMatches(sample []float64, sampleRate int, audioDuration float64, songId uint32) error {
 
 	spectrogram := getSpectrogram(sample, sampleRate, 5000.0, sampleRate/4)
 	peaks := findPeaks(spectrogram, audioDuration)
 
 	fp := GetFingerPrint(peaks, songId) // set of ALL hashes of the song sample
 	// search fp in the database
+	Bins, err := db.SearchDB(fp)
+	if err != nil {
+		return err
 
-	for h, info := range fp {
-		matched, err := db.SearchDB(h, info.Anchor_time) // returns all the hashes matvhed with this one, diff songIDs
-		if err != nil {
+	}
 
-			continue // go to next guy
+	for id, matches := range Bins {
 
-			// return matched, err
+		// 		a sequence of hashes in one file
+		// should also occur in the matching file with the same
+		// relative time sequence
+
+		// per song
+		var bin map[uint32]db.Matched
+		for _, match := range matches {
+			bin[match.MatchedHash] = match
 		}
 
-		// create a hashtable for each song with id as matched hash and value as matched trime
-
-		// based on diff songId, neds to be seperated into bins
+		points := 0
 
 	}
 
 }
-
-// func Get(hash uint32, sampleTime uint32) []Matched {
-
-// 	// For
-// 	// each matching hash found in the database, the
-// 	// corresponding offset times from the beginning of the
-// 	// sample and database files are associated into time pairs.
-// 	// The time pairs are distributed into bins according to the
-// 	// track ID associated with the matching database hash.
-
-// 	var result []Matched
-
-// 	return result
-
-// }

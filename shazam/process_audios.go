@@ -143,8 +143,7 @@ func getPCMData(input []byte) []float64 {
 		output[i] = float64(sample)
 	}
 
-	return output  // -32768 to 32767
+	return output // -32768 to 32767
 	// has the amplitude
-	
 
 }

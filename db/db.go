@@ -2,7 +2,9 @@ package db
 
 import (
 	"errors"
-	// "shazam/shazam"
+	"shazam/structs"
+
+	// "shazam/shazam/FingerPrints"
 
 	"context"
 	"fmt"
@@ -14,12 +16,7 @@ import (
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
-type Information struct {
-	Anchor_time uint32
-	SongID      uint32
-}
-
-func PutintoDB(fingerPrint map[uint32]Information) error {
+func PutintoDB(fingerPrint map[uint32]structs.Information) error {
 	uri := os.Getenv("MONGODB_URI")
 
 	docs := "www.mongodb.com/docs/drivers/go/current/"
@@ -71,28 +68,27 @@ func PutintoDB(fingerPrint map[uint32]Information) error {
 }
 
 type Matched struct {
+	MatchedHash uint32
 	SampleTime  uint32
 	MatchedTime uint32
 	DBsongId    uint32
 }
 
-func SearchDB(sampleHash uint32, sampleTime uint32) ([]Matched, error) {
-	// returns matched hash and also matched sonngID
-	var matches []Matched
+func SearchDB(sampleFP map[uint32]structs.Information) (map[uint32][]Matched, error) {
 
 	uri := os.Getenv("MONGODB_URI")
 
 	// docs := "www.mongodb.com/docs/drivers/go/current/"
 	if uri == "" {
 
-		return matches, errors.New("MONGODB_URI empty")
+		return nil, errors.New("MONGODB_URI empty")
 	}
 
 	client, err := mongo.Connect(options.Client().
 		ApplyURI(uri))
 
 	if err != nil {
-		return matches, err
+		return nil, err
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -102,30 +98,47 @@ func SearchDB(sampleHash uint32, sampleTime uint32) ([]Matched, error) {
 
 	collection := client.Database("shazam").Collection("finger_prints")
 
-	filter := bson.M{"_id": sampleHash}
+	// var intermediate [](map[uint32][]Matched)
+	var bins map[uint32][]Matched
 
-	cursor, err := collection.Find(ctx, filter, options.Find())
+	for h, info := range sampleFP {
+		// per hash in the sample dingerPrint
 
-	if err != nil {
-		return matches, err
+		filter := bson.M{"_id": h}
+
+		cursor, err := collection.Find(ctx, filter, options.Find())
+
+		var found []structs.Information
+
+		if err = cursor.All(ctx, &found); err != nil {
+			return nil, err
+		}
+
+		// var arr []Matched
+		// var bin map[uint32]Matched
+
+		for _, f := range found {
+			m := Matched{SampleTime: info.Anchor_time, MatchedTime: f.Anchor_time, DBsongId: f.SongID, MatchedHash: h}
+			// need to store a map per song with id as h and value as matched
+
+			city, ok := bins[f.SongID]
+			if ok {
+				bins[f.SongID] = append(city, m)
+
+			} else {
+				arr := []Matched{m}
+				bins[f.SongID] = arr
+
+			}
+
+		}
+
 	}
 
-	var found []Information
+	return bins, nil
 
-	if err = cursor.All(ctx, &found); err != nil {
-		return matches, err
-	}
+	// var bins map[uint32][]Matched
 
-	for _, f := range found {
-		m := Matched{SampleTime: sampleTime, MatchedTime: f.Anchor_time, DBsongId: f.SongID}
-		matches = append(matches, m)
-
-	}
-
-	if len(matches) == 0 {
-		return matches, errors.New("no matches found")
-	}
-
-	return matches, nil
+	// need to break it into maps per song
 
 }
