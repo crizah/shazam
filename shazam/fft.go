@@ -1,15 +1,15 @@
-package main
+package shazam
 
 import (
 	"math"
 )
 
-// define functions with specific return types
-// how to define and use vectorsa and hashmaps
-// how to makea struct
-// how to process the WAV header files
-
 func fft(a []complex128) {
+
+	// f(t) = A cos (Bt + C)
+
+	// https://cp-algorithms.com/algebra/fft.html
+
 	n := len(a)
 
 	if n <= 1 {

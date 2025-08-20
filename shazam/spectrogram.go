@@ -1,9 +1,7 @@
 package shazam
 
 import (
-	"fmt"
 	"math"
-
 	"math/cmplx"
 )
 
@@ -16,7 +14,9 @@ const (
 )
 
 func LowPassFilter(PCM []float64, sampleRate int, cutoffFrequency float64) []float64 {
-	// filetered := make([]float64, len(PCM)) // this was error, donot do this, idek how
+
+	// https://dsp.stackexchange.com/questions/9425/how-to-determine-alpha-smoothing-constant-of-a-lpf
+
 	var filetered []float64
 	rc := 1.0 / (2.0 * math.Pi * cutoffFrequency)
 	dt := 1.0 / float64(sampleRate)
@@ -37,10 +37,11 @@ func LowPassFilter(PCM []float64, sampleRate int, cutoffFrequency float64) []flo
 }
 
 func downSample(filtered []float64, originalSR int, targetSR int) []float64 {
+	// avg out the 4 and takje those
 
 	var downSampled []float64
 
-	ratio := originalSR / targetSR
+	ratio := originalSR / targetSR // 4
 
 	for i := 0; i < len(filtered); i += ratio {
 		end := i + ratio
@@ -65,6 +66,8 @@ func downSample(filtered []float64, originalSR int, targetSR int) []float64 {
 }
 
 func hann() []float64 {
+
+	// https://www.sciencedirect.com/topics/engineering/hanning-window
 	window := make([]float64, frameSize)
 	for i := range window {
 		window[i] = 0.5 * (1 - math.Cos(2*math.Pi*float64(i)/float64(frameSize-1)))
@@ -73,12 +76,14 @@ func hann() []float64 {
 	return window
 
 }
+
 func frameSignal(samples []float64) [][]complex128 {
 	var frames [][]complex128
 	window := hann()
 	// fmt.Println(len(window))
 
 	numFrames := len(samples) / (frameSize - hopSize)
+
 	for i := 0; i < numFrames; i++ {
 		start := i * hopSize
 		end := start + frameSize
@@ -108,34 +113,80 @@ func frameSignal(samples []float64) [][]complex128 {
 }
 
 func getSpectrogram(PCMsamples []float64, sampleRate int, cutOffFreq float64, targetRate int) [][]complex128 {
-	lps := LowPassFilter(PCMsamples, sampleRate, cutOffFreq)
-	fmt.Println("lps size: ", len(lps))
+	lps := LowPassFilter(PCMsamples, sampleRate, cutOffFreq) // cutoff freq = 5000
+	// fmt.Println("lps size: ", len(lps))
 	// fine till here
 
-	downsampled := downSample(lps, sampleRate, targetRate)
-	fmt.Println("downsampled size: ", len(downsampled))
+	downsampled := downSample(lps, sampleRate, targetRate) // targetRate = original rate /4
+	// fmt.Println("downsampled size: ", len(downsampled))
 
 	// fine till here
 
 	spectrogram := frameSignal(downsampled) // error here
 
 	return spectrogram
-}
+	// rows freq, columns time and values are intensity
 
-func Finalspectrogram() {
-
-	spectrogram := getSpectrogram()
-	peaks := findPeaks(spectrogram)
-	fingerPrints := getFingerPrint(peaks)
-
+	// 	The translationinvariant aspect means that fingerprint hashes derived from
+	// corresponding matching content are reproducible
+	// independent of position within an audio file, as long as the
+	// temporal locality containing the data from which the hash
+	// is computed is contained within the file.
 }
 
 var band_ranges = []Band{
-	{0, 10}, {10, 20}, {20, 40}, {40, 80}, {80, 160}, {160, 511}, // so weird i have to add a comma at the end here
+	{0, 10}, {10, 20}, {20, 50}, {50, 80}, {80, 150}, {150, 350}, {350, 520},
+}
+
+type Peak struct {
+	Time      float64
+	Frequency complex128
+}
+
+type StrongPoint struct {
+	freq     complex128
+	mag      float64
+	freq_idx int
+}
+
+type Band struct {
+	min, max int
 }
 
 func findPeaks(spectrogram [][]complex128, audioDuration float64) []Peak {
 	// error here
+
+	// 	A time-frequency point is a candidate peak if it has a
+	// higher energy content than all its neighbors in a region
+	// centered around the point. Candidate peaks are chosen
+	// according to a density criterion in order to assure that the
+	// time-frequency strip for the audio file has reasonably
+	// uniform coverage. The peaks in each time-frequency
+	// locality are also chosen according amplitude, with the
+	// justification that the highest amplitude peaks are most
+	// likely to survive the distortions listed above.
+
+	// max amplitudes in each locality
+
+	// 20 - 5000hz are the freq
+	// 440hz is what music is tuned to
+
+	// var peaks []Peak
+	// for i, frame := range spectrogram{
+
+	// 	// per frame, 6 candidate points
+	// 	var Sp Peak
+	// 	for _, band := range band_ranges{
+	// 		mm := -897986
+	// 		var candidatePeaks StrongPoint
+
+	// 		for j, freq := range frame{
+
+	// 		}
+
+	// 	}
+
+	// rows freq, columns time and values are intensity
 
 	var peaks []Peak
 	frameDuration := audioDuration / float64(len(spectrogram))
@@ -149,7 +200,7 @@ func findPeaks(spectrogram [][]complex128, audioDuration float64) []Peak {
 			// per band, one strongpoint
 			var maxMag float64 = -82
 
-			for j, freq := range frame[band.min:band.max] { // slices are so great. so helpful
+			for j, freq := range frame[band.min:band.max] {
 				mag := cmplx.Abs(freq)
 
 				if mag > maxMag {
@@ -191,41 +242,5 @@ func findPeaks(spectrogram [][]complex128, audioDuration float64) []Peak {
 	}
 
 	return peaks
-
-}
-
-const (
-	r = 5
-)
-
-func compressHash(h Hash) uint32 {
-	a := uint32(h.a_frequency<<23) | uint32(h.t_frequency<<14) | uint32(h.time)
-	return a
-}
-
-func getFingerPrint(peaks []Peak, songId uint32) map[uint32]information {
-	var fingerPrint = make(map[uint32]information)
-	for i, anchor := range peaks {
-		// per anchor
-		for j := i + 1; j < i+r && j < len(peaks); j++ {
-			// per a, t pair
-			target := peaks[j]
-			anchor_freq := int(real(anchor.Frequency))
-			target_freq := int(real(target.Frequency))
-			time_diff := uint32((target.Time - anchor.Time) * 1000)
-
-			h := Hash{anchor_freq, target_freq, time_diff}
-			// compress h to uint 32
-
-			hash_i := compressHash(h)
-
-			anchor_time := uint32(anchor.Time * 1000)
-			info := information{anchor_time, songId}
-			// intermediate := []uint32{anchor_time, songId}
-			fingerPrint[hash_i] = info
-		}
-	}
-	return fingerPrint
-	// i think type error
 
 }

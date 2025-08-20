@@ -1,15 +1,30 @@
 package shazam
 
 type Information struct {
-	anchor_time uint32
-	songID      uint32
+	Anchor_time uint32
+	SongID      uint32
 }
 
 const (
-	r = 5
+	r = 10
 )
 
 func GetFingerPrint(peaks []Peak, songId uint32) map[uint32]Information {
+
+	// 	Fingerprint hashes are formed from the constellation map,
+	// in which pairs of time-frequency points are combinatorially
+	// associated. Anchor points are chosen, each anchor point
+	// having a target zone associated with it. Each anchor point
+	// is sequentially paired with points within its target zone,
+	// each pair yielding two frequency components plus the time
+	// difference between the points (Figure 1C and 1D). These
+	// hashes are quite reproducible, even in the presence of noise
+	// and voice codec compression. Furthermore, each hash can
+	// be packed into a 32-bit unsigned integer. Each hash is also
+	// associated with the time offset from the beginning of the
+	// respective file to its anchor point, though the absolute time
+	// is not a part of the hash itself.
+
 	var fingerPrint = make(map[uint32]Information)
 	for i, anchor := range peaks {
 		// per anchor
@@ -33,8 +48,6 @@ func GetFingerPrint(peaks []Peak, songId uint32) map[uint32]Information {
 	}
 	return fingerPrint
 	// save this to db
-
-	// i think type error
 
 }
 
