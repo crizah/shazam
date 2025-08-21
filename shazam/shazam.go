@@ -1,6 +1,9 @@
 package shazam
 
-import "shazam/db"
+import (
+	"math"
+	"shazam/db"
+)
 
 // do the processing of the file
 // finger printing on that process
@@ -38,10 +41,13 @@ func FindMatches(sample []float64, sampleRate int, audioDuration float64, songId
 	fp := GetFingerPrint(peaks, songId) // set of ALL hashes of the song sample
 	// search fp in the database
 	Bins, err := db.SearchDB(fp)
+
 	if err != nil {
 		return err
 
 	}
+
+	var Candidates map[uint32]int
 
 	for id, matches := range Bins {
 
@@ -51,12 +57,45 @@ func FindMatches(sample []float64, sampleRate int, audioDuration float64, songId
 
 		// per song
 		var bin map[uint32]db.Matched
+
 		for _, match := range matches {
 			bin[match.MatchedHash] = match
+
 		}
+
+		var binOrder []uint32
+		for _, fpKey := range fp.Order {
+			_, ok := bin[fpKey]
+			if ok {
+				binOrder = append(binOrder, fpKey)
+			}
+
+		}
+
+		// binOrder and fp.Order now have relative position of the values
 
 		points := 0
 
+		for i := 0; i < len(fp.Order)-1; i++ {
+			for j := i + 1; j < len(fp.Order); j++ {
+				if j == len(binOrder) {
+					break
+				}
+
+				diff1 := math.Abs(float64(fp.Order[i] - fp.Order[j]))
+				diff2 := math.Abs(float64(binOrder[i] - binOrder[j]))
+				if math.Abs(diff1-diff2) < 100 {
+					points++
+				}
+
+			}
+
+		}
+
+		Candidates[id] = points
+
 	}
+
+	// sort Candidates based on Values decreasing order
 
 }

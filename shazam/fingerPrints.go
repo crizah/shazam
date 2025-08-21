@@ -6,7 +6,7 @@ const (
 	r = 10
 )
 
-func GetFingerPrint(peaks []Peak, songId uint32) map[uint32]structs.Information {
+func GetFingerPrint(peaks []Peak, songId uint32) structs.OMap {
 
 	// 	Fingerprint hashes are formed from the constellation map,
 	// in which pairs of time-frequency points are combinatorially
@@ -22,7 +22,7 @@ func GetFingerPrint(peaks []Peak, songId uint32) map[uint32]structs.Information 
 	// respective file to its anchor point, though the absolute time
 	// is not a part of the hash itself.
 
-	var fingerPrint = make(map[uint32]structs.Information)
+	var fingerPrint structs.OMap
 	for i, anchor := range peaks {
 		// per anchor
 		for j := i + 1; j < i+r && j < len(peaks); j++ {
@@ -41,7 +41,10 @@ func GetFingerPrint(peaks []Peak, songId uint32) map[uint32]structs.Information 
 
 			info := structs.Information{anchor_time, songId}
 			// intermediate := []uint32{anchor_time, songId}
-			fingerPrint[hash_i] = info
+
+			fingerPrint.Map[hash_i] = info
+			fingerPrint.Order = append(fingerPrint.Order, hash_i)
+
 		}
 	}
 	return fingerPrint

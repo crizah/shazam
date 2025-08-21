@@ -16,7 +16,7 @@ import (
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
-func PutintoDB(fingerPrint map[uint32]structs.Information) error {
+func PutintoDB(fingerPrint structs.OMap) error {
 	uri := os.Getenv("MONGODB_URI")
 
 	docs := "www.mongodb.com/docs/drivers/go/current/"
@@ -41,7 +41,7 @@ func PutintoDB(fingerPrint map[uint32]structs.Information) error {
 
 	collection := client.Database("shazam").Collection("finger_prints") // need to change this but this will do for now
 
-	for hash, in := range fingerPrint {
+	for hash, in := range fingerPrint.Map {
 
 		filter := bson.M{"_id": hash}
 		update := bson.M{
@@ -65,6 +65,8 @@ func PutintoDB(fingerPrint map[uint32]structs.Information) error {
 
 	return nil
 
+	// inserted doesnt need to maintain order
+
 }
 
 type Matched struct {
@@ -74,7 +76,7 @@ type Matched struct {
 	DBsongId    uint32
 }
 
-func SearchDB(sampleFP map[uint32]structs.Information) (map[uint32][]Matched, error) {
+func SearchDB(sampleFP structs.OMap) (map[uint32][]Matched, error) {
 
 	uri := os.Getenv("MONGODB_URI")
 
@@ -98,10 +100,9 @@ func SearchDB(sampleFP map[uint32]structs.Information) (map[uint32][]Matched, er
 
 	collection := client.Database("shazam").Collection("finger_prints")
 
-	// var intermediate [](map[uint32][]Matched)
 	var bins map[uint32][]Matched
 
-	for h, info := range sampleFP {
+	for h, info := range sampleFP.Map {
 		// per hash in the sample dingerPrint
 
 		filter := bson.M{"_id": h}
@@ -136,9 +137,5 @@ func SearchDB(sampleFP map[uint32]structs.Information) (map[uint32][]Matched, er
 	}
 
 	return bins, nil
-
-	// var bins map[uint32][]Matched
-
-	// need to break it into maps per song
 
 }
