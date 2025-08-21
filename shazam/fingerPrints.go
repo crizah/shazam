@@ -52,6 +52,12 @@ func GetFingerPrint(peaks []Peak, songId uint32) structs.OMap {
 
 }
 
+type Hash struct {
+	a_frequency int
+	t_frequency int
+	time        uint32
+}
+
 func compressHash(h Hash) uint32 {
 	a := uint32(h.a_frequency<<23) | uint32(h.t_frequency<<14) | uint32(h.time)
 	return a

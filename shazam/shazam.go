@@ -1,8 +1,15 @@
 package shazam
 
+// do error handelinmg properly
+// figure out the songID generation thing
+// clean up the Matched zStruct
+// clean up all structs
+// priority queue implementation
+
 import (
 	"math"
 	"shazam/db"
+	"sort"
 )
 
 // do the processing of the file
@@ -33,7 +40,12 @@ import (
 
 // NEED TO DO ALL ERROR HANDELING
 
-func FindMatches(sample []float64, sampleRate int, audioDuration float64, songId uint32) error {
+type Candidate struct {
+	SongID uint32
+	Points int
+}
+
+func FindMatches(sample []float64, sampleRate int, audioDuration float64, songId uint32) (*[]Candidate, error) {
 
 	spectrogram := getSpectrogram(sample, sampleRate, 5000.0, sampleRate/4)
 	peaks := findPeaks(spectrogram, audioDuration)
@@ -43,11 +55,11 @@ func FindMatches(sample []float64, sampleRate int, audioDuration float64, songId
 	Bins, err := db.SearchDB(fp)
 
 	if err != nil {
-		return err
+		return nil, err
 
 	}
 
-	var Candidates map[uint32]int
+	var candidates []Candidate
 
 	for id, matches := range Bins {
 
@@ -56,7 +68,7 @@ func FindMatches(sample []float64, sampleRate int, audioDuration float64, songId
 		// relative time sequence
 
 		// per song
-		var bin map[uint32]db.Matched
+		bin := make(map[uint32]db.Matched)
 
 		for _, match := range matches {
 			bin[match.MatchedHash] = match
@@ -76,11 +88,8 @@ func FindMatches(sample []float64, sampleRate int, audioDuration float64, songId
 
 		points := 0
 
-		for i := 0; i < len(fp.Order)-1; i++ {
-			for j := i + 1; j < len(fp.Order); j++ {
-				if j == len(binOrder) {
-					break
-				}
+		for i := 0; i < len(binOrder)-1; i++ {
+			for j := i + 1; j < len(binOrder); j++ {
 
 				diff1 := math.Abs(float64(fp.Order[i] - fp.Order[j]))
 				diff2 := math.Abs(float64(binOrder[i] - binOrder[j]))
@@ -92,10 +101,28 @@ func FindMatches(sample []float64, sampleRate int, audioDuration float64, songId
 
 		}
 
-		Candidates[id] = points
+		can := Candidate{SongID: id, Points: points}
+
+		candidates = append(candidates, can)
 
 	}
 
-	// sort Candidates based on Values decreasing order
+	// sort candidates based on their points in decreasing order
+
+	sort.Slice(candidates[:], func(i, j int) bool {
+		return candidates[i].Points > candidates[j].Points
+	})
+
+	return &candidates, nil
 
 }
+
+// For each Matched in bins[songId]:
+
+// Compute offset := MatchedTime - SampleTime.
+
+// Count how many times each offset (or offset bucket) occurs.
+
+// Because times won’t be exactly equal, bucket them (e.g., round to nearest 0.1s).
+
+// The largest bucket count = score for that candidate song.

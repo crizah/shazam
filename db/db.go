@@ -100,7 +100,7 @@ func SearchDB(sampleFP structs.OMap) (map[uint32][]Matched, error) {
 
 	collection := client.Database("shazam").Collection("finger_prints")
 
-	var bins map[uint32][]Matched
+	bins := make(map[uint32][]Matched)
 
 	for h, info := range sampleFP.Map {
 		// per hash in the sample dingerPrint
@@ -114,9 +114,6 @@ func SearchDB(sampleFP structs.OMap) (map[uint32][]Matched, error) {
 		if err = cursor.All(ctx, &found); err != nil {
 			return nil, err
 		}
-
-		// var arr []Matched
-		// var bin map[uint32]Matched
 
 		for _, f := range found {
 			m := Matched{SampleTime: info.Anchor_time, MatchedTime: f.Anchor_time, DBsongId: f.SongID, MatchedHash: h}
