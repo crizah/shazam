@@ -62,7 +62,7 @@ func (ws *WebSocket) Handshake() error {
 	accept := calculateAccept(key)
 
 	response := []string{
-		"HTTP/1.1 101 Web Socket Protocol Handshake",
+		"HTTP/1.1 101 Web Switching Protocols",
 		"Server: go/echoserver",
 		"Upgrade: WebSocket",
 		"Connection: Upgrade",
@@ -79,7 +79,7 @@ func (ws *WebSocket) Handshake() error {
 		return err
 
 	}
-	return nil
+	return ws.bufrw.Flush()
 
 }
 
@@ -88,7 +88,7 @@ func calculateAccept(key string) string {
 	// 16 byte, base 64
 
 	h := sha1.New()
-	guid := "66035227-7c3c-4ea7-b240-945c396a8205" // random generated
+	guid := "258EAFA5-E914-47DA-95CA-C5AB0DC85B11" // magic guid
 
 	h.Write([]byte(key))
 	h.Write([]byte(guid))
