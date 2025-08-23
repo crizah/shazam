@@ -89,7 +89,7 @@
 // };
 
 
-// const sendResultsToGoServer = async (results) => {
+// const sendSongsToGoServer = async (results) => {
 //   try {
 //     const response = await fetch("http://localhost:8080/get_songs", {
 //       method: "POST",

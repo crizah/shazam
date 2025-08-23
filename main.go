@@ -11,6 +11,12 @@ import (
 // we need to be able to upgrade the connection from http to webSocket
 
 func main() {
+
+	// go func() {
+	// 	for data := range server.PayloadChan {
+	// 		log.Println("Received from client:", string(data))
+	// 	}
+	// }()
 	http.HandleFunc("/", server.Handler)
 	log.Println("starting server")
 
