@@ -20,6 +20,8 @@ func main() {
 	http.HandleFunc("/", server.Handler)
 	log.Println("starting server")
 
-	log.Fatal(http.ListenAndServe(":1080", nil))
+	// 1080 for getting bytes if soing
+
+	log.Fatal(http.ListenAndServe(":1058", nil))
 
 }
