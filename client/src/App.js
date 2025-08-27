@@ -6,8 +6,7 @@ import React, { useState } from "react";
 
 import sha1 from "js-sha1"; 
 
-const access_token ="BQB-VSccEJJAnhqCZb6ewDk08tiyHCfuDef9CMAWIPKXSbjiRF0KlrAPDsmVhssCAs40oQ9-sHKBXvh8XhHI5ucQGLazimptSUqJ3YNb1xvxRt1Q2ZKRRpPxJFokIYwalJUJmg2k1V4"
-
+const access_token ="BQDUz0dE1GVnZXHyfMa_MPn3FC_oLWNfWxlBFA2k0QQnBSakSX39dr_gIGAnhMbSV0of0ATDn_8d3tgbTIhEVj8gG61l9AAqi28z1SOEjj7PMIeGRB_Ag_dHuM2JB94V-JRWQ6V-xQ8"
 // curl -X POST "https://accounts.spotify.com/api/token" \
 //      -H "Content-Type: application/x-www-form-urlencoded" \
 //      -d "grant_type=client_credentials&client_id=4cfb127f9a3549a598aad3e5bda188f2&client_secret=a6eeffd19d4a471dabe79fbbea15ab0f"

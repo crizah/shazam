@@ -112,7 +112,7 @@ func frameSignal(samples []float64) [][]complex128 {
 
 }
 
-func getSpectrogram(PCMsamples []float64, sampleRate int, cutOffFreq float64, targetRate int) [][]complex128 {
+func GetSpectrogram(PCMsamples []float64, sampleRate int, cutOffFreq float64, targetRate int) [][]complex128 {
 	lps := LowPassFilter(PCMsamples, sampleRate, cutOffFreq) // cutoff freq = 5000
 	// fmt.Println("lps size: ", len(lps))
 	// fine till here
@@ -153,7 +153,7 @@ type Band struct {
 	min, max int
 }
 
-func findPeaks(spectrogram [][]complex128, audioDuration float64) []Peak {
+func FindPeaks(spectrogram [][]complex128, audioDuration float64) []Peak {
 	// error here
 
 	// 	A time-frequency point is a candidate peak if it has a

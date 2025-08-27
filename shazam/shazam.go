@@ -47,8 +47,8 @@ type Candidate struct {
 
 func FindMatches(sample []float64, sampleRate int, audioDuration float64, songId uint32) (*[]Candidate, error) {
 
-	spectrogram := getSpectrogram(sample, sampleRate, 5000.0, sampleRate/4)
-	peaks := findPeaks(spectrogram, audioDuration)
+	spectrogram := GetSpectrogram(sample, sampleRate, 5000.0, sampleRate/4)
+	peaks := FindPeaks(spectrogram, audioDuration)
 
 	fp := GetFingerPrint(peaks, songId) // set of ALL hashes of the song sample
 	// search fp in the database

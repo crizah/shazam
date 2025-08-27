@@ -22,7 +22,17 @@ func GetFingerPrint(peaks []Peak, songId uint32) structs.OMap {
 	// respective file to its anchor point, though the absolute time
 	// is not a part of the hash itself.
 
-	var fingerPrint structs.OMap
+	// 	type OMap struct {
+	// 	Map   map[uint32]Information
+	// 	Order []uint32
+	// }
+
+	m := make(map[uint32]structs.Information)
+	var o []uint32
+
+	fingerPrint := structs.OMap{Map: m, Order: o}
+
+	// var fingerPrint structs.OMap
 	for i, anchor := range peaks {
 		// per anchor
 		for j := i + 1; j < i+r && j < len(peaks); j++ {
@@ -39,7 +49,8 @@ func GetFingerPrint(peaks []Peak, songId uint32) structs.OMap {
 
 			anchor_time := uint32(anchor.Time * 1000)
 
-			info := structs.Information{anchor_time, songId}
+			info := structs.Information{Anchor_time: anchor_time, SongID: songId}
+
 			// intermediate := []uint32{anchor_time, songId}
 
 			fingerPrint.Map[hash_i] = info

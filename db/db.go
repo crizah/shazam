@@ -39,7 +39,7 @@ func PutintoDB(fingerPrint structs.OMap) error {
 
 	defer client.Disconnect(ctx)
 
-	collection := client.Database("shazam").Collection("finger_prints") // need to change this but this will do for now
+	collection := client.Database("shazam").Collection("fps") // need to change this but this will do for now
 
 	for hash, in := range fingerPrint.Map {
 
@@ -98,7 +98,7 @@ func SearchDB(sampleFP structs.OMap) (map[uint32][]Matched, error) {
 
 	defer client.Disconnect(ctx)
 
-	collection := client.Database("shazam").Collection("finger_prints")
+	collection := client.Database("shazam").Collection("fps")
 
 	bins := make(map[uint32][]Matched)
 
@@ -108,6 +108,9 @@ func SearchDB(sampleFP structs.OMap) (map[uint32][]Matched, error) {
 		filter := bson.M{"_id": h}
 
 		cursor, err := collection.Find(ctx, filter, options.Find())
+		if err != nil {
+			return nil, err
+		}
 
 		var found []structs.Information
 

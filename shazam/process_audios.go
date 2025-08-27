@@ -49,7 +49,7 @@ func WriteWavHeader(f *os.File, data []byte, sampleRate int, channels int, bitsP
 		Data_size:       uint32(len(data)),
 	}
 
-	err := binary.Write(f, binary.LittleEndian, header) // write the header file
+	err := binary.Write(f, binary.LittleEndian, header) // write the header file into f
 	return err
 
 }
@@ -57,7 +57,7 @@ func WriteWavHeader(f *os.File, data []byte, sampleRate int, channels int, bitsP
 func PutHeaderIntoFile(filename string, data []byte, sampleRate int, channels int, bitsPerSample int) error {
 	// var header WAVHeader
 
-	file, err := os.Open(filename)
+	file, err := os.OpenFile(filename, os.O_RDWR|os.O_CREATE, 0644)
 
 	if err != nil {
 		return err
@@ -127,7 +127,7 @@ func ReadWavFile(filename string) (*Info, error) {
 
 }
 
-func getPCMData(input []byte) []float64 {
+func GetPCMData(input []byte) []float64 {
 	// from the data in bytes, convert into float values
 	// input would be info.Data
 

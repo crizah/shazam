@@ -1,12 +1,14 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
+	"path/filepath"
+	"shazam/db"
 	"shazam/server"
-
-	"encoding/json"
+	"shazam/shazam"
 )
 
 var Errors []error
@@ -65,10 +67,41 @@ func Handler(responseWriter http.ResponseWriter, req *http.Request) {
 				return
 			}
 
-			server.FindOnYoutube(ReceivedTracks) // find on youtube, download mp3,
+			SongIds := server.FindOnYoutube(ReceivedTracks) // find on youtube, download wav
+			// working till here
 
-			// convert to WAv
-			// do fingerprinting, push to db
+			for _, sID := range SongIds {
+
+				filename := fmt.Sprintf("%d.wav", sID)
+				path := filepath.Join("C:\\Users\\shaiz\\Downloads\\shazam\\songs", filename)
+
+				info, err := shazam.ReadWavFile(path) // issue here
+
+				if err != nil {
+					fmt.Print(err)
+					return
+				}
+				fmt.Println("check2")
+
+				PCMData := shazam.GetPCMData(info.Data)
+				fmt.Println("check3")
+				spectrogram := shazam.GetSpectrogram(PCMData, info.SampleRate, 5000.0, info.SampleRate/4)
+				fmt.Println("check4")
+				peaks := shazam.FindPeaks(spectrogram, info.AudioDuration)
+				fmt.Println("check5")
+				fp := shazam.GetFingerPrint(peaks, sID) // error here
+				fmt.Println("check6")
+				err = db.PutintoDB(fp)
+				fmt.Println("check7")
+				if err != nil { // error here
+					fmt.Println(err)
+					Errors = append(Errors, err)
+					return
+				}
+
+				fmt.Println("added into db")
+
+			}
 
 		case 0x2: // binary frame
 			fmt.Println("Received binary")
