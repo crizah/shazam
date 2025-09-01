@@ -8,7 +8,8 @@ import (
 	"encoding/base64"
 	"encoding/binary"
 	"errors"
-	"fmt"
+
+	// "fmt"
 
 	// "log"
 
@@ -35,72 +36,7 @@ type WebSocket struct {
 	status uint16
 }
 
-var Errors []error
-
 // var PayloadChan = make(chan []byte, 10)
-
-func Handler(responseWriter http.ResponseWriter, req *http.Request) {
-	// cant return error, needs to fit into a certain type
-
-	webSocket, err := New(responseWriter, req)
-	if err != nil {
-		Errors = append(Errors, err)
-
-	}
-
-	err = webSocket.Handshake()
-	if err != nil {
-		Errors = append(Errors, err)
-	}
-
-	defer webSocket.Close()
-
-	for {
-		frame, err := webSocket.Recv()
-		if err != nil {
-			Errors = append(Errors, err)
-			break
-		}
-
-		//   *  %x0 denotes a continuation frame
-
-		//   *  %x1 denotes a text frame
-
-		//   *  %x2 denotes a binary frame
-
-		//   *  %x3-7 are reserved for further non-control frames
-
-		//   *  %x8 denotes a connection close
-
-		//   *  %x9 denotes a ping
-
-		//   *  %xA denotes a pong
-
-		//   *  %xB-F are reserved for further control frames
-
-		switch frame.Opcode {
-		case 0x1: // text frame
-			// PayloadChan <- frame.Payload
-
-			fmt.Println("Received text:", string(frame.Payload))
-		case 0x2: // binary frame
-			fmt.Println("Received binary:", frame.Payload)
-			// PayloadChan <- frame.Payload
-
-		case 0x8: // close
-			fmt.Println("Client closed connection")
-			return
-		case 0x9: // ping
-			fmt.Println("Received ping")
-
-		case 0xA: // pong
-			fmt.Println("Received pong")
-		default:
-			fmt.Println("Unknown opcode", frame.Opcode)
-		}
-	}
-
-}
 
 func (ws *WebSocket) Close() error {
 

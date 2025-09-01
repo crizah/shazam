@@ -52,7 +52,12 @@ func FindMatches(sample []float64, sampleRate int, audioDuration float64, songId
 
 	fp := GetFingerPrint(peaks, songId) // set of ALL hashes of the song sample
 	// search fp in the database
-	Bins, err := db.SearchDB(fp)
+	client, err := db.NewMongoClient("mongodb+srv://shaizahlabique:Mooshy@cluster0.d9fzhp3.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0")
+	if err != nil {
+		return nil, err
+	}
+
+	Bins, err := client.SearchDB(fp)
 
 	if err != nil {
 		return nil, err

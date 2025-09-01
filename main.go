@@ -67,33 +67,59 @@ func Handler(responseWriter http.ResponseWriter, req *http.Request) {
 				return
 			}
 
-			SongIds := server.FindOnYoutube(ReceivedTracks) // find on youtube, download wav
-			// working till here
+			Tracks := server.GetTracks(ReceivedTracks)
+			SongIds := server.FindOnYoutube(Tracks) // find on youtube, download wav
 
-			for _, sID := range SongIds {
+			for i, sID := range SongIds {
 
 				filename := fmt.Sprintf("%d.wav", sID)
 				path := filepath.Join("C:\\Users\\shaiz\\Downloads\\shazam\\songs", filename)
 
-				info, err := shazam.ReadWavFile(path) // issue here
+				info, err := shazam.ReadWavFile(path)
 
 				if err != nil {
 					fmt.Print(err)
 					return
 				}
-				fmt.Println("check2")
 
 				PCMData := shazam.GetPCMData(info.Data)
-				fmt.Println("check3")
+
 				spectrogram := shazam.GetSpectrogram(PCMData, info.SampleRate, 5000.0, info.SampleRate/4)
-				fmt.Println("check4")
+
 				peaks := shazam.FindPeaks(spectrogram, info.AudioDuration)
-				fmt.Println("check5")
-				fp := shazam.GetFingerPrint(peaks, sID) // error here
-				fmt.Println("check6")
-				err = db.PutintoDB(fp)
-				fmt.Println("check7")
-				if err != nil { // error here
+
+				fp := shazam.GetFingerPrint(peaks, sID) // 442485 godamn fps
+				fmt.Println(len(fp.Order))
+
+				mongoClient, err := db.NewMongoClient()
+				if err != nil {
+					fmt.Println("client couldnt connect")
+					fmt.Println(err)
+					return
+				}
+
+				err = mongoClient.PutSongIds(sID, Tracks[i].Artist, Tracks[i].Name)
+
+				if err != nil {
+
+					fmt.Println("didnt register songIds ")
+					fmt.Println(err)
+					Errors = append(Errors, err)
+					return
+
+				}
+				// working till here
+
+				fmt.Println("check1 ")
+
+				err = mongoClient.PutintoDB(fp) // error here
+
+				if err != nil {
+					// put a delete function here
+					// delete all that have that sID
+
+					fmt.Println("didnt register fps")
+
 					fmt.Println(err)
 					Errors = append(Errors, err)
 					return

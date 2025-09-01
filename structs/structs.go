@@ -9,3 +9,8 @@ type OMap struct {
 	Map   map[uint32]Information
 	Order []uint32
 }
+
+type Helper struct {
+	Artist string
+	Name   string
+}

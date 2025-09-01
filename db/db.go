@@ -1,45 +1,78 @@
 package db
 
 import (
-	"errors"
 	"shazam/structs"
+	"time"
 
 	// "shazam/shazam/FingerPrints"
 
 	"context"
 	"fmt"
-	"os"
-	"time"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
-func PutintoDB(fingerPrint structs.OMap) error {
-	uri := os.Getenv("MONGODB_URI")
+type MongoClient struct {
+	client *mongo.Client
+}
 
-	docs := "www.mongodb.com/docs/drivers/go/current/"
-	if uri == "" {
+func NewMongoClient(uri string) (*MongoClient, error) {
+	clientOptions := options.Client().ApplyURI(uri)
 
-		return errors.New("Set your 'MONGODB_URI' environment variable. " +
-			"See: " + docs +
-			"usage-examples/#environment-variable")
-	}
-
-	client, err := mongo.Connect(options.Client().
-		ApplyURI(uri))
-
+	client, err := mongo.Connect(clientOptions)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	defer client.Disconnect(ctx)
+	if err := client.Ping(ctx, nil); err != nil {
+		return nil, err
+	}
 
-	collection := client.Database("shazam").Collection("fps") // need to change this but this will do for now
+	return &MongoClient{client: client}, nil
+}
+
+func (db *MongoClient) Close() error {
+	if db.client != nil {
+		return db.client.Disconnect(context.Background())
+	}
+	return nil
+}
+
+func (db *MongoClient) PutSongIds(songId uint32, artist string, songName string) error {
+
+	collection := db.client.Database("shazamm").Collection("test_songs") // need to change this but this will do for now
+
+	// key as songId and name, artist
+
+	filter := bson.M{"_id": songId}
+	update := bson.M{
+		"$push": bson.M{
+			"couples": bson.M{
+				"songName":   songName,
+				"songArtist": artist,
+			},
+		},
+	}
+
+	_, err := collection.UpdateOne(context.Background(), filter, update, options.UpdateOne().SetUpsert(true))
+
+	if err != nil {
+		return err
+	}
+
+	fmt.Println("song registered")
+	return nil
+
+}
+
+func (db *MongoClient) PutintoDB(fingerPrint structs.OMap) error {
+
+	collection := db.client.Database("shazamm").Collection("test_fps") // need to change this but this will do for now
 
 	for hash, in := range fingerPrint.Map {
 
@@ -53,7 +86,10 @@ func PutintoDB(fingerPrint structs.OMap) error {
 			},
 		}
 
-		_, err := collection.UpdateOne(ctx, filter, update, options.UpdateOne().SetUpsert(true))
+		// ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		// defer cancel()
+
+		_, err := collection.UpdateOne(context.Background(), filter, update, options.UpdateOne().SetUpsert(true))
 
 		if err != nil {
 			return err
@@ -65,8 +101,6 @@ func PutintoDB(fingerPrint structs.OMap) error {
 
 	return nil
 
-	// inserted doesnt need to maintain order
-
 }
 
 type Matched struct {
@@ -76,29 +110,9 @@ type Matched struct {
 	DBsongId    uint32
 }
 
-func SearchDB(sampleFP structs.OMap) (map[uint32][]Matched, error) {
+func (db *MongoClient) SearchDB(sampleFP structs.OMap) (map[uint32][]Matched, error) {
 
-	uri := os.Getenv("MONGODB_URI")
-
-	// docs := "www.mongodb.com/docs/drivers/go/current/"
-	if uri == "" {
-
-		return nil, errors.New("MONGODB_URI empty")
-	}
-
-	client, err := mongo.Connect(options.Client().
-		ApplyURI(uri))
-
-	if err != nil {
-		return nil, err
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	defer client.Disconnect(ctx)
-
-	collection := client.Database("shazam").Collection("fps")
+	collection := db.client.Database("shazamm").Collection("test_fps")
 
 	bins := make(map[uint32][]Matched)
 
@@ -107,14 +121,14 @@ func SearchDB(sampleFP structs.OMap) (map[uint32][]Matched, error) {
 
 		filter := bson.M{"_id": h}
 
-		cursor, err := collection.Find(ctx, filter, options.Find())
+		cursor, err := collection.Find(context.Background(), filter, options.Find())
 		if err != nil {
 			return nil, err
 		}
 
 		var found []structs.Information
 
-		if err = cursor.All(ctx, &found); err != nil {
+		if err = cursor.All(context.Background(), &found); err != nil {
 			return nil, err
 		}
 

@@ -6,10 +6,7 @@ import React, { useState } from "react";
 
 import sha1 from "js-sha1"; 
 
-const access_token ="BQDUz0dE1GVnZXHyfMa_MPn3FC_oLWNfWxlBFA2k0QQnBSakSX39dr_gIGAnhMbSV0of0ATDn_8d3tgbTIhEVj8gG61l9AAqi28z1SOEjj7PMIeGRB_Ag_dHuM2JB94V-JRWQ6V-xQ8"
-// curl -X POST "https://accounts.spotify.com/api/token" \
-//      -H "Content-Type: application/x-www-form-urlencoded" \
-//      -d "grant_type=client_credentials&client_id=4cfb127f9a3549a598aad3e5bda188f2&client_secret=a6eeffd19d4a471dabe79fbbea15ab0f"
+const access_token ="BQCFOt1OkLO5q2L5O14IC5GbBDAhziRN7oa8nTXUU_llC5c51qTJtbycOLd27SORKS5OVFP8DRZntQ2nWs0wViaqaXnQPOS47mlV_AM8tsH61mahLloICPYVshizSmIBWGwtyhtWSaM"
 
 function createSongID(name, artist, album) {
   const input = name + artist + album;
